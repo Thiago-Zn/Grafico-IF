@@ -1,719 +1,464 @@
-"""Charts module for DD-AA economic model visualization with animation support."""
+"""Charts module for DD-AA model - simplified and accurate."""
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 
 
-def build_canvas(data: dict) -> go.Figure:
-    """Build the complete DD-AA model visualization with all subplots."""
+def build_complete_diagram(step_data, step_index):
+    """Build the complete DD-AA diagram for a given step."""
     
-    # Create subplots layout with better spacing
+    # Create the correct subplot layout
     fig = make_subplots(
         rows=3, cols=2,
-        row_heights=[0.3, 0.3, 0.4],
+        row_heights=[0.25, 0.25, 0.5],
         column_widths=[0.5, 0.5],
-        specs=[[{"type": "xy"}, {"type": "xy"}],
-               [{"type": "xy"}, {"type": "xy"}],
-               [{"colspan": 2, "type": "xy"}, None]],
-        vertical_spacing=0.10,
-        horizontal_spacing=0.08,
-        subplot_titles=None  # We'll add custom titles
+        specs=[
+            [{"type": "xy"}, {"type": "xy"}],
+            [{"type": "xy"}, {"type": "xy"}],
+            [{"colspan": 2, "type": "xy"}, None]
+        ],
+        vertical_spacing=0.12,
+        horizontal_spacing=0.10
     )
     
-    # Add custom subplot titles with proper styling
-    _add_subplot_titles(fig)
+    # Get data for current step
+    changes = step_data.get("changes", {})
     
-    # 1. Investment-i subplot (top-left)
-    _add_investment_panel(fig, data, row=1, col=1)
+    # Add all panels
+    _add_investment_panel(fig, changes, row=1, col=1)
+    _add_demand_panel(fig, changes, row=1, col=2)
+    _add_serl_panel(fig, changes, row=2, col=1)
+    _add_money_balance_panel(fig, changes, row=2, col=2)
+    _add_ddaa_panel(fig, changes, row=3, col=1)
     
-    # 2. Aggregate Demand subplot (top-right)
-    _add_demand_panel(fig, data, row=1, col=2)
+    # Add trajectory line based on step
+    if step_index > 0:
+        _add_trajectory(fig, step_index)
     
-    # 3. UIP subplot (middle-left)
-    _add_uip_panel(fig, data, row=2, col=1)
-    
-    # 4. LM subplot (middle-right)
-    _add_lm_panel(fig, data, row=2, col=2)
-    
-    # 5. DD-AA Panel (bottom)
-    _add_ddaa_panel(fig, data, row=3, col=1)
-    
-    # Add trajectory line if needed
-    if data.get("trajectory_progress", 0) > 0:
-        _add_trajectory_line(fig, data["trajectory_progress"])
-    
-    # Add formula boxes
-    _add_formula_boxes(fig, data)
+    # Add title and annotations
+    _add_annotations(fig, step_data, changes)
     
     # Style the figure
-    _style_figure(fig, data)
+    _style_figure(fig)
     
     return fig
 
 
-def _add_subplot_titles(fig):
-    """Add custom styled subplot titles."""
-    titles = [
-        ("Investment, i", 0.22, 0.95),
-        ("Aggregate demand", 0.72, 0.95),
-        ("S<sub>ERL/USD</sub>", 0.22, 0.62),
-        ("Real money balance M<sup>D</sup>/P and M/P", 0.72, 0.62),
-        ("Rates of return<br>in terms of ERL", 0.15, 0.28)
-    ]
+def _add_investment_panel(fig, changes, row, col):
+    """Investment-i panel (top-left)."""
+    # Investment curve
+    i = np.linspace(0, 8, 100)
+    I = 30 + 15 * np.sqrt(i)
     
-    for title, x, y in titles:
-        fig.add_annotation(
-            text=title,
-            xref="paper", yref="paper",
-            x=x, y=y,
-            showarrow=False,
-            font=dict(size=12, color="black"),
-            xanchor="center"
-        )
-
-
-def _add_investment_panel(fig, data, row, col):
-    """Add investment curve panel."""
-    invest_x, invest_y = data["invest_curve"]
-    
-    # Main investment curve
     fig.add_trace(
-        go.Scatter(
-            x=invest_x, y=invest_y,
-            mode="lines",
-            line=dict(color="#1f77b4", width=3),
-            showlegend=False,
-            hovertemplate="i: %{x:.1f}<br>I: %{y:.1f}"
-        ),
+        go.Scatter(x=i, y=I, mode='lines', 
+                   line=dict(color='#1f77b4', width=3),
+                   showlegend=False),
         row=row, col=col
     )
     
-    # Add interest rate levels
-    i_levels = data.get("interest_levels", {})
-    for key in ["i1", "i2", "i3"]:
-        if key in i_levels:
-            i_val = i_levels[key]
-            # Find corresponding y value
-            idx = np.argmin(np.abs(invest_x - i_val))
-            y_val = invest_y[idx]
-            
-            # Horizontal dashed line
-            fig.add_hline(
-                y=y_val,
-                line=dict(color="gray", dash="dash", width=1),
-                row=row, col=col
-            )
-            
-            # Vertical dashed line
-            fig.add_vline(
-                x=i_val,
-                line=dict(color="purple", dash="dash", width=1),
-                row=row, col=col
-            )
-            
+    # Interest rate levels
+    i_levels = {"i1": 2, "i2": 1, "i3": 2}
+    current_i = changes.get("i_level", "i1")
+    
+    for level_name, i_val in i_levels.items():
+        if level_name == "i1" or level_name == current_i:
+            I_val = 30 + 15 * np.sqrt(i_val)
+            # Horizontal line
+            fig.add_hline(y=I_val, line=dict(color='gray', dash='dash', width=1),
+                         row=row, col=col)
+            # Vertical line
+            fig.add_vline(x=i_val, line=dict(color='purple', dash='dash', width=1),
+                         row=row, col=col)
             # Label
             fig.add_annotation(
-                text=f"i<sub>{key[-1]}</sub>",
-                x=-0.5, y=y_val,
+                text=f"{level_name}", x=-0.5, y=I_val,
                 xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
-                showarrow=False,
-                font=dict(size=10)
+                showarrow=False, font=dict(size=10)
             )
+    
+    # Title
+    fig.add_annotation(
+        text="Investment, i", x=4, y=52,
+        xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
+        showarrow=False, font=dict(size=12)
+    )
 
 
-def _add_demand_panel(fig, data, row, col):
-    """Add aggregate demand panel."""
-    demand_data = data["demand_line"]
+def _add_demand_panel(fig, changes, row, col):
+    """Aggregate demand panel (top-right)."""
+    Y = np.linspace(60, 150, 100)
     
     # 45-degree line
     fig.add_trace(
-        go.Scatter(
-            x=demand_data["line45_x"], y=demand_data["line45_y"],
-            mode="lines",
-            line=dict(color="gray", width=2),
-            name="D = Y",
-            showlegend=False
-        ),
+        go.Scatter(x=Y, y=Y, mode='lines',
+                   line=dict(color='gray', width=2),
+                   showlegend=False),
         row=row, col=col
     )
     
-    # Multiple demand curves or single curve
-    if data.get("demand_curves_multi", False):
-        # D1, D2, D3 curves
-        colors = ["#1f77b4", "green", "purple"]
-        labels = ["D<sub>1</sub>", "D<sub>2</sub>", "D<sub>3</sub>"]
-        shifts = [0, 10, 0]  # D3 = D1
+    # Demand curves based on step
+    if changes.get("dd_shift"):
+        # Show D1, D2, D3
+        D1 = 0.7 * Y + 20
+        D2 = 0.7 * Y + 25  # Shifted up
+        D3 = 0.7 * Y + 20  # Same as D1
         
-        for i, (color, label, shift) in enumerate(zip(colors, labels, shifts)):
-            fig.add_trace(
-                go.Scatter(
-                    x=demand_data["ad_x"],
-                    y=demand_data["ad_y"] + shift,
-                    mode="lines",
-                    line=dict(color=color, width=2),
-                    showlegend=False
-                ),
-                row=row, col=col
-            )
-            
-            # Add label at end of curve
-            fig.add_annotation(
-                text=label,
-                x=demand_data["ad_x"][-1] * 0.9,
-                y=(demand_data["ad_y"][-1] + shift) * 0.9,
-                xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
-                showarrow=False,
-                font=dict(size=10, color=color)
-            )
-    else:
-        # Single demand curve
         fig.add_trace(
-            go.Scatter(
-                x=demand_data["ad_x"], y=demand_data["ad_y"],
-                mode="lines",
-                line=dict(color="#1f77b4", width=2),
-                showlegend=False
-            ),
+            go.Scatter(x=Y, y=D1, mode='lines',
+                       line=dict(color='purple', width=2),
+                       showlegend=False),
+            row=row, col=col
+        )
+        fig.add_trace(
+            go.Scatter(x=Y, y=D2, mode='lines',
+                       line=dict(color='green', width=2),
+                       showlegend=False),
+            row=row, col=col
+        )
+        
+        # Labels
+        fig.add_annotation(
+            text="D₁ = D₃", x=130, y=111,
+            xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
+            showarrow=False, bgcolor='lavender', bordercolor='purple',
+            borderwidth=1, font=dict(size=10)
+        )
+    else:
+        # Just D1
+        D1 = 0.7 * Y + 20
+        fig.add_trace(
+            go.Scatter(x=Y, y=D1, mode='lines',
+                       line=dict(color='#1f77b4', width=2),
+                       showlegend=False),
             row=row, col=col
         )
     
-    # Output level markers
-    output_levels = data.get("output_levels", {})
-    for key in ["Y1", "Y2", "Y3"]:
-        if key in output_levels:
-            y_val = output_levels[key]
-            fig.add_vline(
-                x=y_val,
-                line=dict(color="purple", dash="dash", width=1),
-                row=row, col=col
-            )
+    # Y markers
+    Y_levels = {"Y1": 100, "Y2": 110, "Y3": 100}
+    for name, val in Y_levels.items():
+        if name == "Y1" or (name == "Y2" and changes.get("equilibrium") == "Y2"):
+            fig.add_vline(x=val, line=dict(color='purple', dash='dash', width=1),
+                         row=row, col=col)
             fig.add_annotation(
-                text=f"Y<sub>{key[-1]}</sub>",
-                x=y_val, y=50,
+                text=f"{name}", x=val, y=65,
                 xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
-                showarrow=False,
-                yanchor="top",
-                font=dict(size=10)
+                showarrow=False, yanchor='top', font=dict(size=10)
             )
-
-
-def _add_uip_panel(fig, data, row, col):
-    """Add UIP curve panel."""
-    uip_x, uip_y = data["uip_curve"]
     
-    # UIP curve
+    # Title
+    fig.add_annotation(
+        text="Aggregate demand", x=105, y=148,
+        xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
+        showarrow=False, font=dict(size=12)
+    )
+
+
+def _add_serl_panel(fig, changes, row, col):
+    """S_ERL/USD panel (middle-left)."""
+    i = np.linspace(0, 6, 100)
+    s = 1.8 - 0.08 * i
+    
     fig.add_trace(
-        go.Scatter(
-            x=uip_x, y=uip_y,
-            mode="lines",
-            line=dict(color="#1f77b4", width=3),
-            showlegend=False
-        ),
+        go.Scatter(x=i, y=s, mode='lines',
+                   line=dict(color='#1f77b4', width=3),
+                   showlegend=False),
         row=row, col=col
     )
     
     # Exchange rate levels
-    s_levels = data.get("exchange_levels", {})
-    for i, key in enumerate(["s1", "s2", "s3"]):
-        if key in s_levels:
-            s_val = s_levels[key]
-            
-            # Horizontal line
-            fig.add_hline(
-                y=s_val,
-                line=dict(color="gray", dash="dash", width=1),
+    s_levels = {"s1": 1.4, "s2": 1.6, "s3": 1.4}
+    for name, val in s_levels.items():
+        if name == "s1" or (name == "s2" and changes.get("aa_shift")):
+            fig.add_hline(y=val, line=dict(color='gray', dash='dash', width=1),
+                         row=row, col=col)
+            fig.add_annotation(
+                text=f"{name}", x=-0.3, y=val,
+                xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
+                showarrow=False, xanchor='right', font=dict(size=10)
+            )
+    
+    # Formula
+    fig.add_annotation(
+        text="i<sub>USA</sub> + (s̄<sup>e</sup> - s)/s", x=3, y=1.3,
+        xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
+        showarrow=False, font=dict(size=10)
+    )
+    
+    # Title
+    fig.add_annotation(
+        text="S<sub>ERL/USD</sub>", x=3, y=1.85,
+        xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
+        showarrow=False, font=dict(size=12)
+    )
+
+
+def _add_money_balance_panel(fig, changes, row, col):
+    """Real money balance panel (middle-right)."""
+    Y = np.linspace(60, 140, 100)
+    
+    # LM curves
+    if changes.get("lm_shift"):
+        # Show multiple LM curves
+        L1 = 1.5 + 0.02 * (Y - 100)
+        L2 = 1.5 + 0.02 * (Y - 110)  # Shifted
+        L3 = 1.5 + 0.02 * (Y - 100)  # Back to original
+        
+        curves = [(L1, '#1f77b4', 'L(i, Y₁)'), 
+                  (L2, 'green', 'L(i, Y₂)')]
+        if changes.get("equilibrium") == "Y3":
+            curves.append((L3, 'red', 'L(i, Y₃)'))
+        
+        for L, color, label in curves:
+            fig.add_trace(
+                go.Scatter(x=Y, y=L, mode='lines',
+                           line=dict(color=color, width=2),
+                           showlegend=False),
                 row=row, col=col
             )
-            
             # Label
             fig.add_annotation(
-                text=f"s<sub>{key[-1]}</sub>",
-                x=uip_x[0] - 0.5,
-                y=s_val,
+                text=label, x=Y[-1], y=L[-1],
                 xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
-                showarrow=False,
-                xanchor="right",
-                font=dict(size=10)
-            )
-    
-    # Add UIP formula
-    fig.add_annotation(
-        text="i<sub>USA</sub> + (s̄<sup>e</sup> - s)/s",
-        x=np.mean(uip_x),
-        y=np.min(uip_y) - 0.1,
-        xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
-        showarrow=False,
-        font=dict(size=10)
-    )
-
-
-def _add_lm_panel(fig, data, row, col):
-    """Add LM curves panel."""
-    lm_x, lm_y = data["lm_curve"]
-    
-    # Check if we need to show original curve
-    if "lm_curve_original" in data:
-        orig_x, orig_y = data["lm_curve_original"]
-        fig.add_trace(
-            go.Scatter(
-                x=orig_x, y=orig_y,
-                mode="lines",
-                line=dict(color="rgba(0,0,0,0.25)", width=2),
-                showlegend=False
-            ),
-            row=row, col=col
-        )
-    
-    # Current LM curve(s)
-    if data.get("demand_curves_multi", False):
-        # Multiple LM curves
-        colors = ["#1f77b4", "green", "#d62728"]
-        labels = ["L(i, Y<sub>1</sub>)", "L(i, Y<sub>2</sub>)", "L(i, Y<sub>3</sub>)"]
-        
-        for i, (color, label) in enumerate(zip(colors, labels)):
-            x_shift = i * 15
-            fig.add_trace(
-                go.Scatter(
-                    x=lm_x + x_shift, y=lm_y,
-                    mode="lines",
-                    line=dict(color=color, width=2),
-                    showlegend=False
-                ),
-                row=row, col=col
-            )
-            
-            # Add label
-            fig.add_annotation(
-                text=label,
-                x=(lm_x[-1] + x_shift),
-                y=lm_y[-1],
-                xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
-                showarrow=False,
-                xanchor="left",
-                font=dict(size=9, color=color)
+                showarrow=False, xanchor='left', font=dict(size=9, color=color)
             )
     else:
-        # Single LM curve
+        # Just L1
+        L1 = 1.5 + 0.02 * (Y - 100)
         fig.add_trace(
-            go.Scatter(
-                x=lm_x, y=lm_y,
-                mode="lines",
-                line=dict(color="#1f77b4", width=3),
-                showlegend=False
-            ),
+            go.Scatter(x=Y, y=L1, mode='lines',
+                       line=dict(color='#1f77b4', width=3),
+                       showlegend=False),
             row=row, col=col
         )
     
-    # Money supply lines
-    fig.add_vline(
-        x=np.max(lm_x) * 0.9,
-        line=dict(color="black", width=1),
-        row=row, col=col
-    )
+    # Money supply line
+    fig.add_vline(x=120, line=dict(color='black', width=2),
+                 row=row, col=col)
     fig.add_annotation(
-        text="M<sup>S</sup>/P<sub>1</sub>",
-        x=np.max(lm_x) * 0.9,
-        y=np.mean(lm_y),
+        text="M<sup>S</sup>/P₁", x=120, y=2.5,
         xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
-        showarrow=False,
-        xanchor="right",
-        font=dict(size=10)
+        showarrow=False, font=dict(size=10)
+    )
+    
+    # Title
+    fig.add_annotation(
+        text="Real money balance M<sup>D</sup>/P and M/P", x=100, y=3.4,
+        xref=f"x{(row-1)*2+col}", yref=f"y{(row-1)*2+col}",
+        showarrow=False, font=dict(size=12)
     )
 
 
-def _add_ddaa_panel(fig, data, row, col):
-    """Add DD-AA panel."""
+def _add_ddaa_panel(fig, changes, row, col):
+    """DD-AA panel (bottom)."""
+    Y = np.linspace(50, 150, 100)
+    
+    # Base curves
+    DD1 = 2.0 - 0.005 * Y
+    AA1 = 0.8 + 0.008 * Y
+    
     # Pre-shock curves (gray)
-    dd_pre_x, dd_pre_y = data["points_DD_pre"]
-    aa_pre_x, aa_pre_y = data["points_AA_pre"]
-    
-    # DD pre-shock
     fig.add_trace(
-        go.Scatter(
-            x=dd_pre_x, y=dd_pre_y,
-            mode="lines",
-            line=dict(color="rgba(0,0,0,0.25)", width=2),
-            showlegend=False
-        ),
+        go.Scatter(x=Y, y=DD1, mode='lines',
+                   line=dict(color='rgba(0,0,0,0.3)', width=2),
+                   showlegend=False),
+        row=row, col=col
+    )
+    fig.add_trace(
+        go.Scatter(x=Y, y=AA1, mode='lines',
+                   line=dict(color='rgba(0,0,0,0.3)', width=2),
+                   showlegend=False),
         row=row, col=col
     )
     
-    # AA pre-shock
-    fig.add_trace(
-        go.Scatter(
-            x=aa_pre_x, y=aa_pre_y,
-            mode="lines",
-            line=dict(color="rgba(0,0,0,0.25)", width=2),
-            showlegend=False
-        ),
-        row=row, col=col
+    # Labels for base curves
+    fig.add_annotation(
+        text="DD₁", x=Y[-1], y=DD1[-1],
+        xref=f"x5", yref=f"y5",
+        showarrow=False, xanchor='left', font=dict(size=10)
+    )
+    fig.add_annotation(
+        text="AA₁=₃", x=Y[0], y=AA1[0],
+        xref=f"x5", yref=f"y5",
+        showarrow=False, xanchor='right', font=dict(size=10)
     )
     
-    # Post-shock curves (if different)
-    dd_post_x, dd_post_y = data["points_DD_post"]
-    aa_post_x, aa_post_y = data["points_AA_post"]
-    
-    if not np.array_equal(dd_pre_y, dd_post_y):
+    # Shifted curves based on changes
+    if changes.get("dd_shift"):
+        DD2 = 2.1 - 0.005 * Y  # Shifted right
         fig.add_trace(
-            go.Scatter(
-                x=dd_post_x, y=dd_post_y,
-                mode="lines",
-                line=dict(color="#1f77b4", width=3),
-                showlegend=False
-            ),
+            go.Scatter(x=Y, y=DD2, mode='lines',
+                       line=dict(color='#1f77b4', width=3),
+                       showlegend=False),
             row=row, col=col
         )
         fig.add_annotation(
-            text="DD<sub>2</sub>",
-            x=dd_post_x[-1], y=dd_post_y[-1],
+            text="DD₂", x=Y[-1], y=DD2[-1],
             xref=f"x5", yref=f"y5",
-            showarrow=False,
-            xanchor="left",
-            font=dict(size=10, color="#1f77b4")
+            showarrow=False, xanchor='left', font=dict(size=10, color='#1f77b4')
         )
     
-    if not np.array_equal(aa_pre_y, aa_post_y):
+    if changes.get("aa_shift") == 1:
+        AA2 = 0.9 + 0.008 * Y  # Shifted right
         fig.add_trace(
-            go.Scatter(
-                x=aa_post_x, y=aa_post_y,
-                mode="lines",
-                line=dict(color="#d62728", width=3),
-                showlegend=False
-            ),
+            go.Scatter(x=Y, y=AA2, mode='lines',
+                       line=dict(color='red', width=3),
+                       showlegend=False),
             row=row, col=col
         )
         fig.add_annotation(
-            text="AA<sub>2</sub>",
-            x=aa_post_x[0], y=aa_post_y[0],
+            text="AA₂", x=Y[0], y=AA2[0],
             xref=f"x5", yref=f"y5",
-            showarrow=False,
-            xanchor="right",
-            font=dict(size=10, color="#d62728")
+            showarrow=False, xanchor='right', font=dict(size=10, color='red')
         )
-    
-    # Curve labels
-    fig.add_annotation(
-        text="DD<sub>1</sub>",
-        x=dd_pre_x[-1], y=dd_pre_y[-1],
-        xref=f"x5", yref=f"y5",
-        showarrow=False,
-        xanchor="left",
-        font=dict(size=10, color="gray")
-    )
-    
-    fig.add_annotation(
-        text="AA<sub>1=3</sub>",
-        x=aa_pre_x[0], y=aa_pre_y[0],
-        xref=f"x5", yref=f"y5",
-        showarrow=False,
-        xanchor="right",
-        font=dict(size=10, color="gray")
-    )
+        # Arrow
+        fig.add_annotation(
+            x=110, y=1.68, ax=100, ay=1.6,
+            xref="x5", yref="y5", axref="x5", ayref="y5",
+            showarrow=True, arrowhead=3, arrowcolor='red',
+            arrowwidth=3, arrowsize=1.5
+        )
+    elif changes.get("aa_shift") == 2:
+        # AA partially returns
+        AA3 = 0.82 + 0.008 * Y
+        fig.add_trace(
+            go.Scatter(x=Y, y=AA3, mode='lines',
+                       line=dict(color='red', width=3),
+                       showlegend=False),
+            row=row, col=col
+        )
     
     # Equilibrium points
-    eq_pre = data["equilibrium_pre"]
-    eq_post = data["equilibrium_post"]
+    eq_points = {
+        "default": (100, 1.4),
+        "Y2": (110, 1.5),
+        "Y3": (100, 1.42)
+    }
+    eq = eq_points.get(changes.get("equilibrium", "default"), eq_points["default"])
     
     fig.add_trace(
-        go.Scatter(
-            x=[eq_pre[0]], y=[eq_pre[1]],
-            mode="markers",
-            marker=dict(color="black", size=10),
-            showlegend=False
-        ),
+        go.Scatter(x=[eq[0]], y=[eq[1]], mode='markers',
+                   marker=dict(color='black', size=12),
+                   showlegend=False),
         row=row, col=col
     )
     
-    if eq_pre != eq_post:
+    # Title
+    fig.add_annotation(
+        text="Rates of return<br>in terms of ERL", x=70, y=1.9,
+        xref=f"x5", yref=f"y5",
+        showarrow=False, font=dict(size=12)
+    )
+    
+    # Policy text box (for final step)
+    if changes.get("equilibrium") == "Y3":
+        fig.add_annotation(
+            text="and the interest rate remains at its level i₁. The AA shifts back to its original level The output remains at it full-employment level: Y₁ = Y₃    i₁ = i₃    s₁ = s₃",
+            x=0.98, y=0.02,
+            xref="paper", yref="paper",
+            showarrow=False, xanchor='right', yanchor='bottom',
+            bgcolor='rgba(255,255,255,0.8)', bordercolor='red',
+            borderwidth=1, font=dict(size=11, color='red')
+        )
+
+
+def _add_trajectory(fig, step_index):
+    """Add red trajectory line based on step."""
+    # Define trajectory segments for each step
+    trajectories = {
+        1: [(0.25, 0.82), (0.25, 0.75)],  # Investment down
+        2: [(0.25, 0.82), (0.25, 0.57), (0.25, 0.52)],  # To S_ERL
+        3: [(0.25, 0.82), (0.25, 0.57), (0.25, 0.52), (0.75, 0.52)],  # To LM
+        4: [(0.25, 0.82), (0.25, 0.57), (0.25, 0.52), (0.75, 0.52), (0.75, 0.30)],  # Down
+        5: [(0.25, 0.82), (0.25, 0.57), (0.25, 0.52), (0.75, 0.52), (0.75, 0.30), (0.55, 0.22)],  # To equilibrium
+        6: [(0.25, 0.82), (0.25, 0.57), (0.25, 0.52), (0.75, 0.52), (0.75, 0.30), (0.50, 0.22)]  # Final
+    }
+    
+    if step_index in trajectories:
+        points = trajectories[step_index]
+        x_vals = [p[0] for p in points]
+        y_vals = [p[1] for p in points]
+        
         fig.add_trace(
             go.Scatter(
-                x=[eq_post[0]], y=[eq_post[1]],
-                mode="markers",
-                marker=dict(color="black", size=10),
+                x=x_vals, y=y_vals,
+                mode='lines',
+                line=dict(color='red', width=4),
+                xref='paper', yref='paper',
                 showlegend=False
-            ),
-            row=row, col=col
+            )
         )
-    
-    # AA shift arrows
-    if data.get("show_aa_arrows", False) and not np.array_equal(aa_pre_y, aa_post_y):
-        mid_idx = len(aa_pre_x) // 2
+
+
+def _add_annotations(fig, step_data, changes):
+    """Add title and formula annotations."""
+    # Top formula (for later steps)
+    if changes.get("dd_shift"):
         fig.add_annotation(
-            x=aa_post_x[mid_idx], y=aa_post_y[mid_idx],
-            ax=aa_pre_x[mid_idx], ay=aa_pre_y[mid_idx],
-            xref="x5", yref="y5",
-            axref="x5", ayref="y5",
-            showarrow=True,
-            arrowhead=3,
-            arrowsize=1.5,
-            arrowcolor="red",
-            arrowwidth=3
-        )
-    
-    # Policy explanation box
-    if data.get("show_policy_box", False):
-        fig.add_annotation(
-            text=data.get("policy_text", "Policy adjustment"),
-            x=0.95, y=0.05,
-            xref="paper", yref="paper",
-            showarrow=False,
-            bgcolor="lavender",
-            bordercolor="purple",
-            borderwidth=2,
-            font=dict(size=11, family="monospace"),
-            align="left",
-            xanchor="right",
-            yanchor="bottom"
-        )
-
-
-def _add_trajectory_line(fig, progress):
-    """Add the red trajectory line that connects panels."""
-    # Define waypoints for the trajectory
-    waypoints = [
-        (0.22, 0.83),  # Start at investment panel
-        (0.22, 0.78),  # Move down
-        (0.45, 0.78),  # Move right to demand panel
-        (0.45, 0.55),  # Move down
-        (0.22, 0.55),  # Move left to UIP
-        (0.22, 0.50),  # Move down
-        (0.55, 0.50),  # Move right to LM
-        (0.55, 0.35),  # Move down
-        (0.50, 0.26)   # End at DD-AA equilibrium
-    ]
-    
-    # Calculate how many points to show based on progress
-    num_points = int(len(waypoints) * progress)
-    if num_points < 2:
-        return
-    
-    # Extract points up to current progress
-    x_points = [p[0] for p in waypoints[:num_points]]
-    y_points = [p[1] for p in waypoints[:num_points]]
-    
-    # Add smooth trajectory
-    fig.add_trace(
-        go.Scatter(
-            x=x_points,
-            y=y_points,
-            mode="lines",
-            line=dict(color="red", width=4),
-            xref="paper",
-            yref="paper",
-            showlegend=False
-        )
-    )
-
-
-def _add_formula_boxes(fig, data):
-    """Add formula annotation boxes."""
-    formulas = data.get("formulas", {})
-    
-    # Top formula box
-    if "top" in formulas:
-        fig.add_annotation(
-            text=formulas["top"],
+            text="D₃ = C₁(Y₃ - T) + I(i₃) + G₁ + CA₃[(Y₃ - T), s₃P*/P]",
             x=0.5, y=0.98,
             xref="paper", yref="paper",
-            showarrow=False,
-            bgcolor="lavender",
-            bordercolor="purple",
-            borderwidth=1,
-            font=dict(size=11),
-            xanchor="center",
-            yanchor="top"
+            showarrow=False, xanchor='center',
+            bgcolor='lavender', bordercolor='purple',
+            borderwidth=1, font=dict(size=11)
+        )
+    elif step_data.get("title") == "Initial Equilibrium":
+        fig.add_annotation(
+            text="D₁ = C₁(Y₁ - T) + I(i₁) + G₁ + CA₁[(Y₁ - T), s₁P*/P]",
+            x=0.5, y=0.98,
+            xref="paper", yref="paper",
+            showarrow=False, xanchor='center',
+            bgcolor='lavender', bordercolor='purple',
+            borderwidth=1, font=dict(size=11)
         )
     
-    # Green box for D2 formula
-    if "green_box" in formulas:
+    # Green D2 box (for middle steps)
+    if changes.get("equilibrium") == "Y2":
         fig.add_annotation(
-            text=formulas["green_box"],
+            text="D₂ = C₁(Y₁ - T) + I(i₁)\n+G₁ + CA₂[(Y₂ - T), s₃P*/P]",
             x=0.85, y=0.85,
             xref="paper", yref="paper",
             showarrow=False,
-            bgcolor="lightgreen",
-            bordercolor="green",
-            borderwidth=1,
-            font=dict(size=10),
-            align="left"
-        )
-    
-    # D3 = D1 annotation
-    if data.get("demand_curves_multi", False):
-        fig.add_annotation(
-            text="D<sub>3</sub> = D<sub>1</sub>",
-            x=0.80, y=0.88,
-            xref="paper", yref="paper",
-            showarrow=False,
-            bgcolor="lavender",
-            bordercolor="purple",
-            borderwidth=1,
-            font=dict(size=10)
+            bgcolor='lightgreen', bordercolor='green',
+            borderwidth=1, font=dict(size=10)
         )
 
 
-def _style_figure(fig, data):
-    """Apply consistent styling to the figure."""
+def _style_figure(fig):
+    """Apply consistent styling."""
     # Update all axes
     fig.update_xaxes(
-        showgrid=False,
-        zeroline=False,
-        showline=True,
-        linecolor="black",
-        linewidth=1,
-        mirror=True,
-        ticks="outside",
-        tickcolor="black",
-        ticklen=5
+        showgrid=False, zeroline=False,
+        showline=True, linecolor='black',
+        mirror=True, ticks='outside'
     )
-    
     fig.update_yaxes(
-        showgrid=False,
-        zeroline=False,
-        showline=True,
-        linecolor="black",
-        linewidth=1,
-        mirror=True,
-        ticks="outside",
-        tickcolor="black",
-        ticklen=5
+        showgrid=False, zeroline=False,
+        showline=True, linecolor='black',
+        mirror=True, ticks='outside'
     )
     
-    # Add axis arrows
-    for i in range(1, 6):
-        if i != 6:  # Skip non-existent subplot
-            # X-axis arrow
-            fig.add_annotation(
-                x=1.02, y=0,
-                xref=f"x{i} domain", yref=f"y{i} domain",
-                showarrow=True,
-                arrowhead=2,
-                arrowsize=1.2,
-                arrowwidth=2,
-                arrowcolor="black",
-                ax=-0.02, ay=0
-            )
-            
-            # Y-axis arrow
-            fig.add_annotation(
-                x=0, y=1.02,
-                xref=f"x{i} domain", yref=f"y{i} domain",
-                showarrow=True,
-                arrowhead=2,
-                arrowsize=1.2,
-                arrowwidth=2,
-                arrowcolor="black",
-                ax=0, ay=-0.02
-            )
-    
-    # Set axis labels
+    # Specific axis labels
     fig.update_xaxes(title_text="i", row=1, col=1)
+    fig.update_yaxes(title_text="I", row=1, col=1)
     fig.update_xaxes(title_text="Output Y", row=1, col=2)
     fig.update_xaxes(title_text="i<sub>ERL</sub>", row=2, col=1)
-    fig.update_xaxes(title_text="", row=2, col=2)
+    fig.update_yaxes(title_text="S<sub>ERL/USD</sub>", row=2, col=1)
     fig.update_xaxes(title_text="Output Y", row=3, col=1)
-    
-    fig.update_yaxes(title_text="I", row=1, col=1)
-    fig.update_yaxes(title_text="", row=1, col=2)
-    fig.update_yaxes(title_text="", row=2, col=1)
-    fig.update_yaxes(title_text="", row=2, col=2)
     fig.update_yaxes(title_text="S<sub>ERL/USD</sub>", row=3, col=1)
     
-    # Update layout
-    title = data.get("title", "DD-AA Model Analysis")
-    
+    # Layout
     fig.update_layout(
-        title={
-            'text': title,
-            'x': 0.5,
-            'xanchor': 'center',
-            'font': {'size': 16, 'color': '#003366'}
-        },
         width=900,
-        height=750,
+        height=700,
         showlegend=False,
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        font=dict(family="Arial, sans-serif", size=11, color="black"),
-        margin=dict(t=100, l=60, r=60, b=60)
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        margin=dict(t=30, l=50, r=50, b=50)
     )
 
 
-def create_transition(from_frame: dict, to_frame: dict, steps: int = 10) -> list:
-    """Create transition frames for smooth animation between two states."""
-    frames = []
-    
-    for i in range(steps):
-        t = i / (steps - 1)  # Interpolation parameter 0 to 1
-        
-        # Create interpolated frame
-        frame = {}
-        
-        # Interpolate numeric values
-        for key in from_frame:
-            if key in to_frame:
-                if isinstance(from_frame[key], tuple) and len(from_frame[key]) == 2:
-                    # Interpolate curve data
-                    x1, y1 = from_frame[key]
-                    x2, y2 = to_frame[key]
-                    
-                    if isinstance(x1, np.ndarray) and isinstance(x2, np.ndarray):
-                        # Interpolate arrays
-                        x_interp = x1 * (1 - t) + x2 * t
-                        y_interp = y1 * (1 - t) + y2 * t
-                        frame[key] = (x_interp, y_interp)
-                    else:
-                        # Interpolate single points
-                        x_interp = x1 * (1 - t) + x2 * t
-                        y_interp = y1 * (1 - t) + y2 * t
-                        frame[key] = (x_interp, y_interp)
-                elif isinstance(from_frame[key], dict):
-                    # Copy dictionaries (like demand_line)
-                    frame[key] = from_frame[key].copy()
-                elif isinstance(from_frame[key], (int, float)):
-                    # Interpolate numeric values
-                    if key in to_frame and isinstance(to_frame[key], (int, float)):
-                        frame[key] = from_frame[key] * (1 - t) + to_frame[key] * t
-                    else:
-                        frame[key] = from_frame[key]
-                else:
-                    # Copy other values
-                    frame[key] = from_frame[key]
-        
-        # Handle trajectory progress
-        if "trajectory_progress" in from_frame and "trajectory_progress" in to_frame:
-            frame["trajectory_progress"] = (
-                from_frame["trajectory_progress"] * (1 - t) + 
-                to_frame["trajectory_progress"] * t
-            )
-        
-        # Copy non-numeric values from target frame
-        for key in ["title", "description", "formulas", "show_shifts", 
-                    "show_aa_arrows", "show_policy_box", "policy_text"]:
-            if key in to_frame:
-                frame[key] = to_frame[key]
-        
-        frames.append(frame)
-    
-    return frames
-
-
-# Legacy functions for compatibility
-def default_range(equilibrium: float, span: float = 100) -> np.ndarray:
-    """Return a symmetric range around equilibrium for plotting."""
-    lower = max(0, equilibrium - span)
-    upper = equilibrium + span
-    return np.linspace(lower, upper, 100)
-
-
-def ad_curve(params, interest_rate: float, y_values: np.ndarray) -> np.ndarray:
-    """Compute aggregate demand curve for many income levels."""
-    from .model import aggregate_demand
-    return np.array([aggregate_demand(params, interest_rate, y) for y in y_values])
-
-
-def ad_chart(params, interest_rate: float, y_values: np.ndarray) -> go.Figure:
-    """Legacy chart function."""
-    from .solver import solve
-    data = solve(params)
-    return build_canvas(data)
+# Compatibility function
+def build_canvas(data):
+    """Legacy function for compatibility."""
+    return build_complete_diagram({"changes": {}}, 0)
