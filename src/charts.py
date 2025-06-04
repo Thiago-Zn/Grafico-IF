@@ -581,30 +581,30 @@ def _style_figure(fig, data):
     
     # Add axis arrows
     for i in range(1, 6):
-        if i != 6:  # Skip non-existent subplot
-            # X-axis arrow
-            fig.add_annotation(
-                x=1.02, y=0,
-                xref=f"x{i} domain", yref=f"y{i} domain",
-                showarrow=True,
-                arrowhead=2,
-                arrowsize=1.2,
-                arrowwidth=2,
-                arrowcolor="black",
-                ax=-0.02, ay=0
-            )
-            
-            # Y-axis arrow
-            fig.add_annotation(
-                x=0, y=1.02,
-                xref=f"x{i} domain", yref=f"y{i} domain",
-                showarrow=True,
-                arrowhead=2,
-                arrowsize=1.2,
-                arrowwidth=2,
-                arrowcolor="black",
-                ax=0, ay=-0.02
-            )
+        # Plotly uses "x" for the first subplot rather than "x1"
+        axis_suffix = "" if i == 1 else str(i)
+
+        fig.add_annotation(
+            x=1.02, y=0,
+            xref=f"x{axis_suffix} domain", yref=f"y{axis_suffix} domain",
+            showarrow=True,
+            arrowhead=2,
+            arrowsize=1.2,
+            arrowwidth=2,
+            arrowcolor="black",
+            ax=-0.02, ay=0
+        )
+
+        fig.add_annotation(
+            x=0, y=1.02,
+            xref=f"x{axis_suffix} domain", yref=f"y{axis_suffix} domain",
+            showarrow=True,
+            arrowhead=2,
+            arrowsize=1.2,
+            arrowwidth=2,
+            arrowcolor="black",
+            ax=0, ay=-0.02
+        )
     
     # Set axis labels
     fig.update_xaxes(title_text="i", row=1, col=1)
