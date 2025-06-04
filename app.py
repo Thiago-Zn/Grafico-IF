@@ -1,114 +1,156 @@
 import streamlit as st
-from src.parameters import Parameters
+import plotly.graph_objects as go
 from src import solver, charts
+import time
 
-st.set_page_config(page_title="DD-AA Model Simulator", layout="centered")
-
-st.title("DD-AA Model: Monetary Policy Analysis")
-st.markdown("**Maintaining the GDP at its Full Employment Level | Monetary Sector Shock**")
-
-with st.sidebar:
-    st.header("Model Parameters")
-    
-    st.subheader("Fiscal Policy")
-    government = st.number_input("Government Spending (G)", min_value=0.0, max_value=100.0, value=50.0, step=5.0)
-    tax = st.number_input("Taxes (T)", min_value=0.0, max_value=100.0, value=40.0, step=5.0)
-    
-    st.subheader("Monetary Policy")
-    money_supply = st.slider("Money Supply (M)", min_value=50.0, max_value=200.0, value=100.0, step=10.0)
-    interest = st.slider("Interest Rate (i)", min_value=0.0, max_value=10.0, value=2.0, step=0.5)
-    
-    st.subheader("Consumption Parameters")
-    alpha = st.number_input("Autonomous Consumption (α)", min_value=10.0, max_value=100.0, value=50.0, step=5.0)
-    beta = st.slider("MPC (β)", min_value=0.0, max_value=0.95, value=0.6, step=0.05)
-    
-    st.subheader("Investment Parameters")
-    invest_intercept = st.number_input("Investment Intercept (I₀)", min_value=10.0, max_value=100.0, value=40.0, step=5.0)
-    invest_slope = st.number_input("Investment Slope (I₁)", min_value=1.0, max_value=20.0, value=5.0, step=1.0)
-    
-    st.subheader("Exchange Rate")
-    exchange_rate = st.slider("Exchange Rate (E)", min_value=0.5, max_value=3.0, value=1.5, step=0.1)
-
-# Create parameters object
-params = Parameters(
-    alpha=alpha,
-    beta=beta,
-    investment_intercept=invest_intercept,
-    investment_slope=invest_slope,
-    government=government,
-    tax=tax
+# Configure page
+st.set_page_config(
+    page_title="DD-AA Model Interactive Viewer",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
-# Solve the model
-data = solver.solve(params)
+# Initialize session state
+if 'scenario_index' not in st.session_state:
+    st.session_state.scenario_index = 0
+if 'frame_index' not in st.session_state:
+    st.session_state.frame_index = 0
 
-# Build and display the visualization
-fig = charts.build_canvas(data)
-st.plotly_chart(fig, use_container_width=True)
+# Define scenarios
+SCENARIOS = [
+    "Initial Equilibrium | GDP at Full Employment",
+    "Temporary Monetary Expansion",
+    "Permanent Monetary Expansion", 
+    "Temporary Fiscal Expansion",
+    "Permanent Fiscal Expansion",
+    "Exchange Rate Crisis"
+]
 
-# Display key results
-col1, col2, col3 = st.columns(3)
+# Main layout
+col1, col2 = st.columns([4, 1])
+
 with col1:
-    st.metric("Pre-shock Output (Y₁)", f"{data['equilibrium_pre'][0]:.1f}")
+    # Title
+    st.markdown("""
+    <h1 style='text-align: center; color: #003366;'>
+    DD-AA Model: Policy Analysis Framework
+    </h1>
+    """, unsafe_allow_html=True)
+    
+    # Get current scenario and frame
+    scenario = SCENARIOS[st.session_state.scenario_index]
+    frames = solver.get_scenario_frames(st.session_state.scenario_index)
+    current_frame = frames[st.session_state.frame_index]
+    
+    # Build and display chart
+    fig = charts.build_canvas(current_frame)
+    
+    # Create placeholder for the chart
+    chart_placeholder = st.empty()
+    chart_placeholder.plotly_chart(fig, use_container_width=True, key=f"chart_{st.session_state.frame_index}")
+
 with col2:
-    st.metric("Post-shock Output (Y₃)", f"{data['equilibrium_post'][0]:.1f}")
-with col3:
-    st.metric("Policy Result", "Y₁ = Y₃" if abs(data['equilibrium_pre'][0] - data['equilibrium_post'][0]) < 0.1 else "Adjustment needed")
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    
+    # Scenario selector
+    st.markdown("### Select Scenario")
+    new_scenario_index = st.selectbox(
+        label="Scenario",
+        options=range(len(SCENARIOS)),
+        format_func=lambda x: SCENARIOS[x],
+        index=st.session_state.scenario_index,
+        key="scenario_selector",
+        label_visibility="collapsed"
+    )
+    
+    # Update scenario if changed
+    if new_scenario_index != st.session_state.scenario_index:
+        st.session_state.scenario_index = new_scenario_index
+        st.session_state.frame_index = 0
+        st.rerun()
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Navigation buttons
+    col_back, col_forward = st.columns(2)
+    
+    with col_back:
+        back_disabled = st.session_state.frame_index == 0
+        if st.button("⬅️ Back", 
+                    disabled=back_disabled, 
+                    use_container_width=True,
+                    type="secondary" if not back_disabled else "primary"):
+            
+            # Animate transition
+            if st.session_state.frame_index > 0:
+                # Get previous frame
+                prev_frame = frames[st.session_state.frame_index - 1]
+                
+                # Create transition frames
+                transition_frames = charts.create_transition(
+                    current_frame, 
+                    prev_frame, 
+                    steps=10
+                )
+                
+                # Animate
+                for t_frame in transition_frames:
+                    fig_t = charts.build_canvas(t_frame)
+                    chart_placeholder.plotly_chart(fig_t, use_container_width=True)
+                    time.sleep(0.05)
+                
+                # Update state
+                st.session_state.frame_index -= 1
+                st.rerun()
+    
+    with col_forward:
+        forward_disabled = st.session_state.frame_index >= len(frames) - 1
+        if st.button("Forward ➡️", 
+                    disabled=forward_disabled,
+                    use_container_width=True,
+                    type="primary" if not forward_disabled else "secondary"):
+            
+            # Animate transition
+            if st.session_state.frame_index < len(frames) - 1:
+                # Get next frame
+                next_frame = frames[st.session_state.frame_index + 1]
+                
+                # Create transition frames
+                transition_frames = charts.create_transition(
+                    current_frame,
+                    next_frame,
+                    steps=10
+                )
+                
+                # Animate
+                for t_frame in transition_frames:
+                    fig_t = charts.build_canvas(t_frame)
+                    chart_placeholder.plotly_chart(fig_t, use_container_width=True)
+                    time.sleep(0.05)
+                
+                # Update state
+                st.session_state.frame_index += 1
+                st.rerun()
+    
+    # Frame indicator
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style='text-align: center; color: #666;'>
+    Frame {st.session_state.frame_index + 1} of {len(frames)}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Current frame description
+    if 'description' in current_frame:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.info(current_frame['description'])
 
-# Add explanation
-with st.expander("📖 Model Explanation", expanded=False):
-    st.markdown("""
-    ### The DD-AA Model Framework
-    
-    This interactive model demonstrates how **expansionary monetary policy** can maintain output at its full-employment level 
-    following a monetary sector shock.
-    
-    #### Key Components:
-    
-    1. **Investment-i Panel**: Shows how investment responds to interest rate changes
-    2. **Aggregate Demand Panel**: Displays the relationship between output (Y) and demand (D)
-    3. **UIP Panel**: Uncovered Interest Parity condition linking domestic and foreign interest rates
-    4. **LM Panel**: Money market equilibrium showing real money balance demand
-    5. **DD-AA Panel**: The main equilibrium framework showing:
-       - **DD Curve**: Goods market equilibrium
-       - **AA Curve**: Asset market equilibrium
-    
-    #### Policy Mechanism:
-    
-    The **red trajectory** shows how the economy moves through the adjustment process:
-    - Starting from initial equilibrium
-    - Following the monetary expansion
-    - Returning to full-employment output
-    
-    The expansionary monetary policy compensates for the change in money demand, keeping the interest rate 
-    stable and maintaining output at its full-employment level: **Y₁ = Y₃**
-    """)
-
-with st.expander("🔧 Technical Details", expanded=False):
-    st.markdown("""
-    ### Model Equations
-    
-    **Consumption Function:**
-    ```
-    C = α + β(Y - T)
-    ```
-    
-    **Investment Function:**
-    ```
-    I = I₀ - I₁ × i
-    ```
-    
-    **Aggregate Demand:**
-    ```
-    D = C + I + G + CA(Y-T, E×P*/P)
-    ```
-    
-    **Equilibrium Conditions:**
-    - Goods Market: Y = D
-    - Money Market: M/P = L(i, Y)
-    - Foreign Exchange: i = i* + (Eᵉ - E)/E
-    """)
-
-# Footer
-st.markdown("---")
-st.caption("DD-AA Model Simulator | Based on Krugman-Obstfeld-Melitz International Economics framework")
+# Hide Streamlit branding
+hide_streamlit_style = """
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+.stDeployButton {display:none;}
+</style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
