@@ -34,7 +34,7 @@ def build_complete_diagram(step_data, step_index):
     _add_investment_panel(fig, changes, row=1, col=1)
     _add_demand_panel(fig, changes, row=1, col=2)
     _add_serl_panel(fig, changes, row=2, col=1)
-    _add_money_market_panel(fig, changes, row=3, col=1)  # Enhanced version
+    _add_money_market_panel(fig, changes, row=3, col=1)
     _add_ddaa_panel(fig, changes, row=3, col=2)
     
     # Add trajectory line based on step
@@ -236,95 +236,250 @@ def _add_serl_panel(fig, changes, row, col):
 
 
 def _add_money_market_panel(fig, changes, row, col):
-    """Enhanced Money Market panel with proper styling."""
-    L = np.linspace(60, 140, 100)
+    """Money Market panel with proper economic logic."""
     
-    xaxis_id = fig.data[-1].xaxis
-    yaxis_id = fig.data[-1].yaxis
+    # Define the real money balance range
+    M_range = np.linspace(60, 140, 100)
     
-    # Create smooth L-shaped money demand curves
-    def create_smooth_l_curve(base_l=100, color='#1f77b4'):
-        """Create economically realistic L-shaped money demand curve"""
-        # High interest rate portion (steep slope)
-        high_q = np.linspace(base_l - 20, base_l - 5, 20)
-        high_i = 3.5 + 2 * np.exp(-(high_q - (base_l - 20)) * 0.1)
-        
-        # Medium interest rate portion (moderate slope)
-        med_q = np.linspace(base_l - 5, base_l + 20, 30)
-        med_i = 1.2 + 30 / (med_q - base_l + 10)
-        
-        # Low interest rate portion (liquidity trap)
-        low_q = np.linspace(base_l + 20, base_l + 40, 20)
-        low_i = np.linspace(0.5, 0.3, 20)
-        
-        # Combine all portions
-        all_q = np.concatenate([high_q, med_q, low_q])
-        all_i = np.concatenate([high_i, med_i, low_i])
-        
-        # Sort by q values
-        sort_idx = np.argsort(all_q)
-        return all_q[sort_idx], all_i[sort_idx]
-
-    # Money supply line (horizontal, thick black)
-    ms_level = 1.2
+    # 1. FIXED MONEY SUPPLY LINE M^S₁/P₁ (horizontal)
+    ms_level = 100  # Initial money supply level
     fig.add_trace(
-        go.Scatter(x=[60, 140], y=[ms_level, ms_level], mode='lines',
-                   line=dict(color='blue', width=3),
+        go.Scatter(x=[60, 140], y=[1.2, 1.2], mode='lines',
+                   line=dict(color='red', width=3),
                    showlegend=False,
-                   name="M^S/P"),
+                   name="M^S₁/P₁"),
         row=row, col=col
     )
     
-    # Add M^S/P label
+    # Get axis references after adding first trace
+    xaxis_id = fig.data[-1].xaxis
+    yaxis_id = fig.data[-1].yaxis
+    
+    # Add M^S₁/P₁ label with arrow pointing to the line
     fig.add_annotation(
-        text="M<sup>S</sup>/P", x=65, y=ms_level + 0.1,
+        text="M<sup>S</sup>₁/P₁", x=65, y=1.15,
         xref=xaxis_id, yref=yaxis_id,
-        showarrow=False, font=dict(size=10, color='blue')
+        showarrow=True, arrowhead=2,
+        ax=65, ay=1.0,
+        font=dict(size=12, color='red')
     )
-
-    # L curves
-    curves = []
-    if not changes.get("lm_shift"):
-        q1, i1 = create_smooth_l_curve(100)
-        curves.append((q1, i1, "#1f77b4", "L(i, Y₁)"))
+    
+    # 2. L CURVES - Show progressively based on step
+    
+    # L curve generation function
+    def L_curve(Y_level, color, shift=0):
+        """Generate L-shaped money demand curve"""
+        # Vertical portion (liquidity trap at low i)
+        vert_M = np.linspace(60, 75, 10)
+        vert_i = np.full_like(vert_M, 0.4)
+        
+        # Curved transition
+        trans_M = np.linspace(75, 90 + Y_level/10 + shift, 20)
+        trans_i = 0.4 + (trans_M - 75)**1.5 / 500
+        
+        # Steep portion (normal money demand)
+        steep_M = np.linspace(90 + Y_level/10 + shift, 140, 30)
+        steep_i = trans_i[-1] + (steep_M - steep_M[0]) * 0.04
+        
+        M_full = np.concatenate([vert_M, trans_M, steep_M])
+        i_full = np.concatenate([vert_i, trans_i, steep_i])
+        
+        return M_full, i_full
+    
+    # Define all three curves
+    curves_data = [
+        ("L₁(i, Y₁)", 100, "#1f77b4", 0),      # Blue - Initial
+        ("L₂(i, Y₂)", 110, "green", 10),       # Green - Higher Y
+        ("L₃(i, Y₁)", 100, "purple", -5)       # Purple - Back to Y₁
+    ]
+    
+    # Determine which curves to show based on current state
+    curves_to_show = []
+    
+    # For transition steps, show all three curves
+    if changes.get("show_transition") or changes.get("equilibrium") == "Y3":
+        curves_to_show = curves_data  # Show all three
     else:
-        q1, i1 = create_smooth_l_curve(100)
-        curves.append((q1, i1, "#1f77b4", "L(i, Y₁)"))
-        q2, i2 = create_smooth_l_curve(110)
-        curves.append((q2, i2, "green", "L(i, Y₂)"))
-        if changes.get("equilibrium") == "Y3":
-            q3, i3 = create_smooth_l_curve(100)
-            curves.append((q3, i3, "red", "L(i, Y₃)"))
-
-    for q_vals, i_vals, color, label in curves:
+        # Otherwise show progressively
+        # Always show L₁
+        curves_to_show.append(curves_data[0])
+        
+        # Show L₂ if there's a shift
+        if changes.get("lm_shift"):
+            curves_to_show.append(curves_data[1])
+    
+    # Draw selected curves
+    for label, Y_level, color, shift in curves_to_show:
+        M_vals, i_vals = L_curve(Y_level, color, shift)
         fig.add_trace(
-            go.Scatter(x=q_vals, y=i_vals, mode='lines',
-                       line=dict(color=color, width=3),
-                       showlegend=False),
+            go.Scatter(x=M_vals, y=i_vals, mode='lines',
+                       line=dict(color=color, width=2.5),
+                       showlegend=False,
+                       name=label),
             row=row, col=col
         )
+        
         # Add curve label
         fig.add_annotation(
-            text=label, x=q_vals[-1], y=i_vals[-1],
+            text=label, x=M_vals[-1], y=i_vals[-1],
             xref=xaxis_id, yref=yaxis_id,
             showarrow=False, xanchor='left',
             font=dict(size=10, color=color)
         )
-
-    # Add green dashed guide lines connecting to other panels
+    
+    # 3. EQUILIBRIUM POINTS (black dots)
+    # Calculate intersection points with M^S₁/P₁ line
+    eq_points = []
+    
+    # Always show initial equilibrium
+    eq_points.append((100, 1.2, "Initial"))
+    
+    # Show subsequent equilibria based on step
     if changes.get("lm_shift"):
-        # Horizontal line at i2
+        eq_points.append((110, 1.2, "Short-run"))
+        
+    if changes.get("equilibrium") in ["Y3"]:
+        eq_points.append((95, 1.2, "Transition"))
+    
+    for M_eq, i_eq, label in eq_points:
+        fig.add_trace(
+            go.Scatter(x=[M_eq], y=[i_eq], mode='markers',
+                       marker=dict(color='black', size=10),
+                       showlegend=False,
+                       name=label),
+            row=row, col=col
+        )
+    
+    # 4. TRANSITION ARROWS between equilibrium points
+    # Show arrows based on current step
+    if changes.get("show_money_increase"):
+        # Initial arrow showing money increase effect
+        fig.add_annotation(
+            text="", x=105, y=1.25, ax=100, ay=1.2,
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=True, arrowhead=2,
+            arrowcolor='red', arrowwidth=3,
+            arrowsize=1.5
+        )
+        
+    if changes.get("show_transition"):
+        # Arrow showing full transition sequence
+        fig.add_annotation(
+            text="①", x=100, y=1.15,
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=False,
+            font=dict(size=12, color='black'),
+            bgcolor='white', bordercolor='black', borderwidth=1
+        )
+        fig.add_annotation(
+            text="②", x=110, y=1.15,
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=False,
+            font=dict(size=12, color='black'),
+            bgcolor='white', bordercolor='black', borderwidth=1
+        )
+        fig.add_annotation(
+            text="③", x=95, y=1.15,
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=False,
+            font=dict(size=12, color='black'),
+            bgcolor='white', bordercolor='black', borderwidth=1
+        )
+        
+        # Curved arrow showing sequence
+        fig.add_annotation(
+            x=110, y=1.25, ax=100, ay=1.25,
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=True, arrowhead=2,
+            arrowcolor='darkgreen', arrowwidth=2,
+            arrowsize=1.2
+        )
+        
+    if changes.get("equilibrium") == "Y3":
+        # Arrow to final equilibrium
+        fig.add_annotation(
+            x=95, y=1.25, ax=110, ay=1.25,
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=True, arrowhead=2,
+            arrowcolor='orange', arrowwidth=2,
+            arrowsize=1.2
+        )
+    
+    # 5. LONG-RUN: New money supply line M^S₂/P₂
+    if changes.get("equilibrium") == "Y3":
+        # Add new money supply line (prices have adjusted)
+        fig.add_trace(
+            go.Scatter(x=[60, 140], y=[1.8, 1.8], mode='lines',
+                       line=dict(color='darkred', width=3, dash='dash'),
+                       showlegend=False,
+                       name="M^S₂/P₂"),
+            row=row, col=col
+        )
+        
+        # Label for new money supply
+        fig.add_annotation(
+            text="M<sup>S</sup>₂/P₂", x=65, y=1.75,
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=True, arrowhead=2,
+            ax=65, ay=1.6,
+            font=dict(size=12, color='darkred')
+        )
+        
+        # Long-run equilibrium point
+        fig.add_trace(
+            go.Scatter(x=[100], y=[1.8], mode='markers',
+                       marker=dict(color='black', size=10, symbol='diamond'),
+                       showlegend=False,
+                       name="Long-run eq"),
+            row=row, col=col
+        )
+    
+    # Vertical arrows showing money supply changes
+    if changes.get("show_money_increase"):
+        # Add downward arrow showing M^S increase
+        fig.add_annotation(
+            text="M<sup>S</sup>↑", x=125, y=1.5,
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=True, arrowhead=2,
+            ax=125, ay=1.0,
+            font=dict(size=16, color='red', weight='bold'),
+            arrowcolor='red', arrowwidth=4
+        )
+        
+    if changes.get("show_long_run"):
+        # Show price adjustment arrow
+        fig.add_annotation(
+            text="P↑", x=135, y=1.5,
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=True, arrowhead=2,
+            ax=135, ay=1.9,
+            font=dict(size=16, color='darkred', weight='bold'),
+            arrowcolor='darkred', arrowwidth=4
+        )
+    
+    # Green dashed guide lines connecting to other panels
+    if changes.get("lm_shift") and not changes.get("equilibrium") == "Y3":
+        # Horizontal guide line at new interest rate
         fig.add_hline(y=1.0, line=dict(color='green', dash='dash', width=2),
                      row=row, col=col)
-        # Vertical line at equilibrium L
+        # Vertical guide line at new money balance
         fig.add_vline(x=110, line=dict(color='green', dash='dash', width=2),
                      row=row, col=col)
-
+        
+        # Labels for guide lines
+        fig.add_annotation(
+            text="i₂", x=57, y=1.0,
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=False, font=dict(size=10, color='green'),
+            bgcolor='white'
+        )
+    
     # Title
     fig.add_annotation(
-        text="Money market", x=100, y=3.8,
+        text="Money market", 
+        x=100, y=3.8,
         xref=xaxis_id, yref=yaxis_id,
-        showarrow=False, font=dict(size=12)
+        showarrow=False, font=dict(size=12, weight='bold')
     )
 
 
@@ -485,24 +640,6 @@ def _add_ddaa_panel(fig, changes, row, col):
             bgcolor='rgba(255,255,255,0.9)', bordercolor='red',
             borderwidth=2, font=dict(size=11, color='red')
         )
-
-
-def _add_shift_arrows(fig, changes, step_index):
-    """Add animated shift arrows based on current step."""
-    # Map step index to which arrows should be shown
-    arrow_schedule = {
-        1: ["show_i_arrow"],
-        2: ["show_s_arrow"],
-        3: ["show_aa_arrow"],
-        4: ["show_dd_arrow"],
-        5: [],
-        6: ["show_aa_return_arrow"]
-    }
-    
-    # Enable appropriate arrows for current step
-    if step_index in arrow_schedule:
-        for arrow_flag in arrow_schedule[step_index]:
-            changes[arrow_flag] = True
 
 
 def _add_trajectory(fig, step_index, x_domains, y_domains):
@@ -667,7 +804,7 @@ def _style_figure(fig):
     fig.update_xaxes(title_text="Output Y", row=1, col=2)
     fig.update_xaxes(title_text="i<sub>ERL</sub>", row=2, col=1)
     fig.update_yaxes(title_text="S<sub>ERL/USD</sub>", row=2, col=1)
-    fig.update_xaxes(title_text="L", row=3, col=1)
+    fig.update_xaxes(title_text="Real money balance M<sup>D</sup>/P and M<sup>S</sup>/P", row=3, col=1)
     fig.update_yaxes(title_text="i", row=3, col=1)
     fig.update_xaxes(title_text="Output Y", row=3, col=2)
     fig.update_yaxes(title_text="S<sub>ERL/USD</sub>", row=3, col=2)
@@ -679,8 +816,8 @@ def _style_figure(fig):
     fig.update_yaxes(range=[60, 150], row=1, col=2)
     fig.update_xaxes(range=[0, 6], row=2, col=1)
     fig.update_yaxes(range=[1.2, 1.9], row=2, col=1)
-    fig.update_xaxes(range=[60, 140], row=3, col=1)
-    fig.update_yaxes(range=[0, 4], row=3, col=1)
+    fig.update_xaxes(range=[55, 145], row=3, col=1)
+    fig.update_yaxes(range=[0.2, 4], row=3, col=1)
     fig.update_xaxes(range=[50, 150], row=3, col=2)
     fig.update_yaxes(range=[1.2, 2.0], row=3, col=2)
     
