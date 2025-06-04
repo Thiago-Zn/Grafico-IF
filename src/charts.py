@@ -482,27 +482,43 @@ def _add_trajectory_line(fig, progress):
         (0.50, 0.26)   # End at DD-AA equilibrium
     ]
     
-    # Calculate how many points to show based on progress
-    num_points = int(len(waypoints) * progress)
-    if num_points < 2:
+    # Clamp progress to [0,1]
+    progress = max(0.0, min(1.0, progress))
+    if progress == 0:
         return
-    
-    # Extract points up to current progress
-    x_points = [p[0] for p in waypoints[:num_points]]
-    y_points = [p[1] for p in waypoints[:num_points]]
-    
-    # Add smooth trajectory
-    fig.add_trace(
-        go.Scatter(
-            x=x_points,
-            y=y_points,
-            mode="lines",
+
+    # Draw trajectory using shapes in paper coordinates
+    total_segments = len(waypoints) - 1
+    segments_to_draw = int(total_segments * progress)
+
+    # Add full segments
+    for i in range(segments_to_draw):
+        x0, y0 = waypoints[i]
+        x1, y1 = waypoints[i + 1]
+        fig.add_shape(
+            type="line",
+            x0=x0, y0=y0,
+            x1=x1, y1=y1,
+            xref="paper", yref="paper",
             line=dict(color="red", width=4),
-            xref="paper",
-            yref="paper",
-            showlegend=False
+            layer="above"
         )
-    )
+
+    # Add partial segment if progress is between two waypoints
+    remaining = total_segments * progress - segments_to_draw
+    if remaining > 0 and segments_to_draw < total_segments:
+        x0, y0 = waypoints[segments_to_draw]
+        x1, y1 = waypoints[segments_to_draw + 1]
+        x_end = x0 + (x1 - x0) * remaining
+        y_end = y0 + (y1 - y0) * remaining
+        fig.add_shape(
+            type="line",
+            x0=x0, y0=y0,
+            x1=x_end, y1=y_end,
+            xref="paper", yref="paper",
+            line=dict(color="red", width=4),
+            layer="above"
+        )
 
 
 def _add_formula_boxes(fig, data):
