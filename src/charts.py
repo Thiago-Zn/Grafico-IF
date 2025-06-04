@@ -9,16 +9,17 @@ def build_complete_diagram(step_data, step_index):
     
     # Create the correct subplot layout
     fig = make_subplots(
-        rows=3, cols=2,
+        rows=3,
+        cols=3,
         row_heights=[0.25, 0.25, 0.5],
-        column_widths=[0.5, 0.5],
+        column_widths=[0.3, 0.3, 0.4],
         specs=[
-            [{"type": "xy"}, {"type": "xy"}],
-            [{"type": "xy"}, {"type": "xy"}],
-            [{"colspan": 2, "type": "xy"}, None]
+            [{"type": "xy"}, {"type": "xy"}, None],
+            [{"type": "xy"}, {"type": "xy"}, None],
+            [{"type": "xy"}, {"colspan": 2, "type": "xy"}, None],
         ],
         vertical_spacing=0.12,
-        horizontal_spacing=0.10
+        horizontal_spacing=0.10,
     )
     
     # Get data for current step
@@ -33,8 +34,8 @@ def build_complete_diagram(step_data, step_index):
     _add_investment_panel(fig, changes, row=1, col=1)
     _add_demand_panel(fig, changes, row=1, col=2)
     _add_serl_panel(fig, changes, row=2, col=1)
-    _add_money_balance_panel(fig, changes, row=2, col=2)
-    _add_ddaa_panel(fig, changes, row=3, col=1)
+    _add_money_balance_panel(fig, changes, row=3, col=1)
+    _add_ddaa_panel(fig, changes, row=3, col=2)
     
     # Add trajectory line based on step
     if step_index > 0:
@@ -59,6 +60,7 @@ def _add_investment_panel(fig, changes, row, col):
                        line=dict(color='#1f77b4', width=3),
                        showlegend=False)
     fig.add_trace(trace, row=row, col=col)
+
     xaxis_id = fig.data[-1].xaxis
     yaxis_id = fig.data[-1].yaxis
     
@@ -99,6 +101,7 @@ def _add_demand_panel(fig, changes, row, col):
                        line=dict(color='gray', width=2),
                        showlegend=False)
     fig.add_trace(trace, row=row, col=col)
+
     xaxis_id = fig.data[-1].xaxis
     yaxis_id = fig.data[-1].yaxis
     
@@ -168,6 +171,7 @@ def _add_serl_panel(fig, changes, row, col):
                        line=dict(color='#1f77b4', width=3),
                        showlegend=False)
     fig.add_trace(trace, row=row, col=col)
+
     xaxis_id = fig.data[-1].xaxis
     yaxis_id = fig.data[-1].yaxis
     
@@ -199,60 +203,39 @@ def _add_serl_panel(fig, changes, row, col):
 
 
 def _add_money_balance_panel(fig, changes, row, col):
-    """Real money balance panel (middle-right)."""
-    Y = np.linspace(60, 140, 100)
-    
-    # LM curves
+    """Real money balance panel."""
+    L = np.linspace(60, 140, 100)
+    i_eq = 1.2
+
+    # Money supply (horizontal)
+    fig.add_hline(y=i_eq, line=dict(color="black", width=2), row=row, col=col)
+
+    xaxis_id = fig.data[-1].xaxis
+    yaxis_id = fig.data[-1].yaxis
+
+    def lm_curve(shift):
+        return i_eq + 0.02 * (L - (100 + shift))
+
+    curves = [(lm_curve(0), "#1f77b4", "L(i, Y₁)")]
     if changes.get("lm_shift"):
-        # Show multiple LM curves
-        L1 = 1.5 + 0.02 * (Y - 100)
-        L2 = 1.5 + 0.02 * (Y - 110)  # Shifted
-        L3 = 1.5 + 0.02 * (Y - 100)  # Back to original
-        
-        curves = [(L1, '#1f77b4', 'L(i, Y₁)'), 
-                  (L2, 'green', 'L(i, Y₂)')]
+        curves.append((lm_curve(10), "green", "L(i, Y₂)"))
         if changes.get("equilibrium") == "Y3":
-            curves.append((L3, 'red', 'L(i, Y₃)'))
-        
-        for L, color, label in curves:
-            trace = go.Scatter(x=Y, y=L, mode='lines',
-                               line=dict(color=color, width=2),
-                               showlegend=False)
-            fig.add_trace(trace, row=row, col=col)
-            if 'xaxis_id' not in locals():
-                xaxis_id = fig.data[-1].xaxis
-                yaxis_id = fig.data[-1].yaxis
-            # Label
-            fig.add_annotation(
-                text=label, x=Y[-1], y=L[-1],
-                xref=xaxis_id, yref=yaxis_id,
-                showarrow=False, xanchor='left', font=dict(size=9, color=color)
-            )
-    else:
-        # Just L1
-        L1 = 1.5 + 0.02 * (Y - 100)
-        trace = go.Scatter(x=Y, y=L1, mode='lines',
-                           line=dict(color='#1f77b4', width=3),
-                           showlegend=False)
-        fig.add_trace(trace, row=row, col=col)
-        xaxis_id = fig.data[-1].xaxis
-        yaxis_id = fig.data[-1].yaxis
-    
-    # Money supply line
-    fig.add_vline(x=120, line=dict(color='black', width=2),
-                 row=row, col=col)
+
+    # Axis arrows
     fig.add_annotation(
-        text="M<sup>S</sup>/P₁", x=120, y=2.5,
+        x=L[-1], y=0, ax=L[-1] + 5, ay=0,
         xref=xaxis_id, yref=yaxis_id,
-        showarrow=False, font=dict(size=10)
+        axref=xaxis_id, ayref=yaxis_id,
+        showarrow=True, arrowhead=2,
     )
-    
-    # Title
     fig.add_annotation(
-        text="Real money balance M<sup>D</sup>/P and M/P", x=100, y=3.4,
+        x=0, y=i_eq + 1.5, ax=0, ay=i_eq + 2.0,
         xref=xaxis_id, yref=yaxis_id,
-        showarrow=False, font=dict(size=12)
+        axref=xaxis_id, ayref=yaxis_id,
+        showarrow=True, arrowhead=2,
     )
+
+   
 
 
 def _add_ddaa_panel(fig, changes, row, col):
@@ -418,7 +401,7 @@ def _add_trajectory(fig, step_index, x_domains, y_domains):
         points = trajectories[step_index]
         x_vals = [p[0] for p in points]
         y_vals = [p[1] for p in points]
-        
+
         for start, end in zip(points[:-1], points[1:]):
             fig.add_shape(
                 type="line",
@@ -483,8 +466,10 @@ def _style_figure(fig):
     fig.update_xaxes(title_text="Output Y", row=1, col=2)
     fig.update_xaxes(title_text="i<sub>ERL</sub>", row=2, col=1)
     fig.update_yaxes(title_text="S<sub>ERL/USD</sub>", row=2, col=1)
-    fig.update_xaxes(title_text="Output Y", row=3, col=1)
-    fig.update_yaxes(title_text="S<sub>ERL/USD</sub>", row=3, col=1)
+    fig.update_xaxes(title_text="L", row=3, col=1)
+    fig.update_yaxes(title_text="i", row=3, col=1)
+    fig.update_xaxes(title_text="Output Y", row=3, col=2)
+    fig.update_yaxes(title_text="S<sub>ERL/USD</sub>", row=3, col=2)
     
     # Layout
     fig.update_layout(
