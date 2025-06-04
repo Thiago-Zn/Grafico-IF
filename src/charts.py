@@ -216,10 +216,26 @@ def _add_money_balance_panel(fig, changes, row, col):
     def lm_curve(shift):
         return i_eq + 0.02 * (L - (100 + shift))
 
+
     curves = [(lm_curve(0), "#1f77b4", "L(i, Y₁)")]
     if changes.get("lm_shift"):
         curves.append((lm_curve(10), "green", "L(i, Y₂)"))
         if changes.get("equilibrium") == "Y3":
+            curves.append((lm_curve(0), "red", "L(i, Y₃)"))
+
+    for curve, color, label in curves:
+        fig.add_trace(
+            go.Scatter(x=L, y=curve, mode='lines',
+                       line=dict(color=color, width=3),
+                       showlegend=False),
+            row=row, col=col
+        )
+        fig.add_annotation(
+            text=label, x=L[-1], y=curve[-1],
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=False, xanchor='left',
+            font=dict(size=10, color=color)
+        )
 
     # Axis arrows
     fig.add_annotation(
@@ -233,6 +249,13 @@ def _add_money_balance_panel(fig, changes, row, col):
         xref=xaxis_id, yref=yaxis_id,
         axref=xaxis_id, ayref=yaxis_id,
         showarrow=True, arrowhead=2,
+    )
+
+    # Title
+    fig.add_annotation(
+        text="Money market", x=110, y=i_eq + 2.1,
+        xref=xaxis_id, yref=yaxis_id,
+        showarrow=False, font=dict(size=12)
     )
 
    
