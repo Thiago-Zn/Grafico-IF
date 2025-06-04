@@ -220,6 +220,38 @@ def _add_money_balance_panel(fig, changes, row, col):
     if changes.get("lm_shift"):
         curves.append((lm_curve(10), "green", "L(i, Y₂)"))
         if changes.get("equilibrium") == "Y3":
+            curves.append((lm_curve(0), "red", "L(i, Y₃)"))
+
+    for vals, color, label in curves:
+        fig.add_trace(
+            go.Scatter(x=L, y=vals, mode="lines",
+                       line=dict(color=color, width=2),
+                       showlegend=False),
+            row=row, col=col
+        )
+        fig.add_annotation(
+            text=label, x=L[-1], y=vals[-1],
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=False, xanchor="left",
+            font=dict(size=9, color=color)
+        )
+
+    # Guidelines and equilibrium point
+    fig.add_vline(x=100, line=dict(color="gray", dash="dash", width=1),
+                  row=row, col=col)
+    fig.add_hline(y=i_eq, line=dict(color="gray", dash="dash", width=1),
+                  row=row, col=col)
+    fig.add_trace(
+        go.Scatter(x=[100], y=[i_eq], mode="markers",
+                   marker=dict(color="black", size=8),
+                   showlegend=False),
+        row=row, col=col
+    )
+    fig.add_annotation(
+        text="M<sup>S</sup>/P₁", x=L[-1], y=i_eq + 0.05,
+        xref=xaxis_id, yref=yaxis_id,
+        showarrow=False, xanchor="right", font=dict(size=10)
+    )
 
     # Axis arrows
     fig.add_annotation(
