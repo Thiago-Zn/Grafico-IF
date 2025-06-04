@@ -272,16 +272,18 @@ def build_canvas(data: dict) -> go.Figure:
         row=3, col=1
     )
     
-    # Red trajectory line
-    fig.add_trace(
-        go.Scatter(
-            x=[0.22, 0.22, 0.45, 0.45, 0.55, 0.55, 0.78, 0.78, 0.50],
-            y=[0.83, 0.78, 0.78, 0.55, 0.55, 0.50, 0.50, 0.35, 0.26],
-            mode="lines",
-            line=dict(color="red", width=4),
-            xref="paper", yref="paper",
-            showlegend=False
-        )
+    # Red trajectory line across subplots
+    traj_x = [0.22, 0.22, 0.45, 0.45, 0.55, 0.55, 0.78, 0.78, 0.50]
+    traj_y = [0.83, 0.78, 0.78, 0.55, 0.55, 0.50, 0.50, 0.35, 0.26]
+    path = "M {} {}".format(traj_x[0], traj_y[0])
+    for x, y in zip(traj_x[1:], traj_y[1:]):
+        path += f" L {x} {y}"
+    fig.add_shape(
+        type="path",
+        path=path,
+        xref="paper",
+        yref="paper",
+        line=dict(color="red", width=4)
     )
     
     # Top formula box
@@ -320,19 +322,20 @@ def build_canvas(data: dict) -> go.Figure:
     for row in range(1, 4):
         for col in range(1, 3):
             if not (row == 3 and col == 2):  # Skip empty subplot
+                axis_index = (row - 1) * 2 + col
+                x_dom = "x domain" if axis_index == 1 else f"x{axis_index} domain"
+                y_dom = "y domain" if axis_index == 1 else f"y{axis_index} domain"
                 # Add arrow to x-axis
                 fig.add_annotation(
-                    x=1, y=0, xref=f"x{(row-1)*2+col} domain", yref=f"y{(row-1)*2+col} domain",
+                    x=1, y=0, xref=x_dom, yref=y_dom,
                     showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2,
-                    arrowcolor="black", ax=-0.02, ay=0, axref=f"x{(row-1)*2+col} domain",
-                    ayref=f"y{(row-1)*2+col} domain"
+                    arrowcolor="black", ax=-0.02, ay=0, axref=x_dom, ayref=y_dom
                 )
                 # Add arrow to y-axis
                 fig.add_annotation(
-                    x=0, y=1, xref=f"x{(row-1)*2+col} domain", yref=f"y{(row-1)*2+col} domain",
+                    x=0, y=1, xref=x_dom, yref=y_dom,
                     showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=2,
-                    arrowcolor="black", ax=0, ay=-0.02, axref=f"x{(row-1)*2+col} domain",
-                    ayref=f"y{(row-1)*2+col} domain"
+                    arrowcolor="black", ax=0, ay=-0.02, axref=x_dom, ayref=y_dom
                 )
     
     # Set axis labels
