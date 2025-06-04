@@ -379,15 +379,14 @@ def _add_trajectory(fig, step_index):
         x_vals = [p[0] for p in points]
         y_vals = [p[1] for p in points]
         
-        fig.add_trace(
-            go.Scatter(
-                x=x_vals, y=y_vals,
-                mode='lines',
-                line=dict(color='red', width=4),
-                xref='paper', yref='paper',
-                showlegend=False
+        for start, end in zip(points[:-1], points[1:]):
+            fig.add_shape(
+                type="line",
+                x0=start[0], y0=start[1],
+                x1=end[0], y1=end[1],
+                xref="paper", yref="paper",
+                line=dict(color="red", width=4)
             )
-        )
 
 
 def _add_annotations(fig, step_data, changes):
