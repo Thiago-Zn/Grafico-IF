@@ -76,7 +76,7 @@ def _add_investment_panel(fig, changes, row, col):
     if current_i == "i2" and changes.get("show_i_arrow"):
         fig.add_annotation(
             x=2, y=45, ax=1, ay=42,
-            xref=xaxis_id, yref=yaxis_id, axref=xaxis_id, ayref=yaxis_id,
+            xref=xaxis_id, yref=yaxis_id,
             showarrow=True, arrowhead=3, arrowcolor='red',
             arrowwidth=3, arrowsize=1.5,
             text="i ↓", font=dict(size=12, color='red')
@@ -204,7 +204,7 @@ def _add_serl_panel(fig, changes, row, col):
     if changes.get("aa_shift") == 1 and changes.get("show_s_arrow"):
         fig.add_annotation(
             x=3, y=1.4, ax=3, ay=1.6,
-            xref=xaxis_id, yref=yaxis_id, axref=xaxis_id, ayref=yaxis_id,
+            xref=xaxis_id, yref=yaxis_id,
             showarrow=True, arrowhead=3, arrowcolor='green',
             arrowwidth=3, arrowsize=1.5,
             text="S ↑", font=dict(size=12, color='green')
@@ -384,7 +384,7 @@ def _add_ddaa_panel(fig, changes, row, col):
         if changes.get("show_dd_arrow"):
             fig.add_annotation(
                 x=90, y=1.55, ax=110, ay=1.55,
-                xref=xaxis_id, yref=yaxis_id, axref=xaxis_id, ayref=yaxis_id,
+                xref=xaxis_id, yref=yaxis_id,
                 showarrow=True, arrowhead=3, arrowcolor='blue',
                 arrowwidth=3, arrowsize=1.5,
                 text="DD →", font=dict(size=12, color='blue')
@@ -408,7 +408,7 @@ def _add_ddaa_panel(fig, changes, row, col):
         if changes.get("show_aa_arrow"):
             fig.add_annotation(
                 x=80, y=1.44, ax=80, ay=1.54,
-                xref=xaxis_id, yref=yaxis_id, axref=xaxis_id, ayref=yaxis_id,
+                xref=xaxis_id, yref=yaxis_id,
                 showarrow=True, arrowhead=3, arrowcolor='red',
                 arrowwidth=3, arrowsize=1.5,
                 text="AA →", font=dict(size=12, color='red')
@@ -432,7 +432,7 @@ def _add_ddaa_panel(fig, changes, row, col):
         if changes.get("show_aa_return_arrow"):
             fig.add_annotation(
                 x=80, y=1.54, ax=80, ay=1.46,
-                xref=xaxis_id, yref=yaxis_id, axref=xaxis_id, ayref=yaxis_id,
+                xref=xaxis_id, yref=yaxis_id,
                 showarrow=True, arrowhead=3, arrowcolor='orange',
                 arrowwidth=3, arrowsize=1.5,
                 text="AA ←", font=dict(size=12, color='orange')
@@ -485,6 +485,24 @@ def _add_ddaa_panel(fig, changes, row, col):
             bgcolor='rgba(255,255,255,0.9)', bordercolor='red',
             borderwidth=2, font=dict(size=11, color='red')
         )
+
+
+def _add_shift_arrows(fig, changes, step_index):
+    """Add animated shift arrows based on current step."""
+    # Map step index to which arrows should be shown
+    arrow_schedule = {
+        1: ["show_i_arrow"],
+        2: ["show_s_arrow"],
+        3: ["show_aa_arrow"],
+        4: ["show_dd_arrow"],
+        5: [],
+        6: ["show_aa_return_arrow"]
+    }
+    
+    # Enable appropriate arrows for current step
+    if step_index in arrow_schedule:
+        for arrow_flag in arrow_schedule[step_index]:
+            changes[arrow_flag] = True
 
 
 def _add_trajectory(fig, step_index, x_domains, y_domains):
@@ -569,7 +587,6 @@ def _add_trajectory(fig, step_index, x_domains, y_domains):
                 x=points[-1][0], y=points[-1][1],
                 ax=points[-2][0], ay=points[-2][1],
                 xref="paper", yref="paper",
-                axref="paper", ayref="paper",
                 showarrow=True, arrowhead=3,
                 arrowcolor="red", arrowwidth=4,
                 arrowsize=1.5

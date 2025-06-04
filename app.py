@@ -234,10 +234,11 @@ with col2:
     # Scenario selector with all Chapter 17 options
     st.markdown("### Select Economic Scenario")
     new_scenario = st.selectbox(
-        "",
+        "Select scenario",
         options=list(SCENARIOS.keys()),
         index=list(SCENARIOS.keys()).index(st.session_state.scenario),
-        key="scenario_selector"
+        key="scenario_selector",
+        label_visibility="hidden"
     )
     
     if new_scenario != st.session_state.scenario:
