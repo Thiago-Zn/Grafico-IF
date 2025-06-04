@@ -61,9 +61,8 @@ def _add_investment_panel(fig, changes, row, col):
                        showlegend=False)
     fig.add_trace(trace, row=row, col=col)
 
-    subplot = fig.get_subplot(row, col)
-    xaxis_id = subplot.xaxis._plotly_name
-    yaxis_id = subplot.yaxis._plotly_name
+    xaxis_id = fig.data[-1].xaxis
+    yaxis_id = fig.data[-1].yaxis
     
     # Interest rate levels
     i_levels = {"i1": 2, "i2": 1, "i3": 2}
@@ -103,9 +102,8 @@ def _add_demand_panel(fig, changes, row, col):
                        showlegend=False)
     fig.add_trace(trace, row=row, col=col)
 
-    subplot = fig.get_subplot(row, col)
-    xaxis_id = subplot.xaxis._plotly_name
-    yaxis_id = subplot.yaxis._plotly_name
+    xaxis_id = fig.data[-1].xaxis
+    yaxis_id = fig.data[-1].yaxis
     
     # Demand curves based on step
     if changes.get("dd_shift"):
@@ -174,9 +172,8 @@ def _add_serl_panel(fig, changes, row, col):
                        showlegend=False)
     fig.add_trace(trace, row=row, col=col)
 
-    subplot = fig.get_subplot(row, col)
-    xaxis_id = subplot.xaxis._plotly_name
-    yaxis_id = subplot.yaxis._plotly_name
+    xaxis_id = fig.data[-1].xaxis
+    yaxis_id = fig.data[-1].yaxis
     
     # Exchange rate levels
     s_levels = {"s1": 1.4, "s2": 1.6, "s3": 1.4}
@@ -213,9 +210,8 @@ def _add_money_balance_panel(fig, changes, row, col):
     # Money supply (horizontal)
     fig.add_hline(y=i_eq, line=dict(color="black", width=2), row=row, col=col)
 
-    sub = fig.get_subplot(row, col)
-    xaxis_id = sub.xaxis._plotly_name
-    yaxis_id = sub.yaxis._plotly_name
+    xaxis_id = fig.data[-1].xaxis
+    yaxis_id = fig.data[-1].yaxis
 
     def lm_curve(shift):
         return i_eq + 0.02 * (L - (100 + shift))
@@ -279,8 +275,7 @@ def _add_money_balance_panel(fig, changes, row, col):
     # Title
     fig.add_annotation(
         text="Real money balance M<sup>D</sup>/P and M/P",
-        x=L[len(L)//2],
-        y=i_eq + 1.0,
+        x=100, y=3.4,
         xref=xaxis_id,
         yref=yaxis_id,
         showarrow=False,
@@ -302,9 +297,8 @@ def _add_ddaa_panel(fig, changes, row, col):
                        showlegend=False)
     fig.add_trace(trace, row=row, col=col)
 
-    subplot = fig.get_subplot(row, col)
-    xaxis_id = subplot.xaxis._plotly_name
-    yaxis_id = subplot.yaxis._plotly_name
+    xaxis_id = fig.data[-1].xaxis
+    yaxis_id = fig.data[-1].yaxis
     fig.add_trace(
         go.Scatter(x=Y, y=AA1, mode='lines',
                    line=dict(color='rgba(0,0,0,0.3)', width=2),
@@ -413,8 +407,8 @@ def _add_trajectory(fig, step_index, x_domains, y_domains):
         'investment': (center(x_domains['xaxis']), center(y_domains['yaxis'])),
         'demand': (center(x_domains['xaxis2']), center(y_domains['yaxis2'])),
         'uip': (center(x_domains['xaxis3']), center(y_domains['yaxis3'])),
-        'lm': (center(x_domains['xaxis5']), center(y_domains['yaxis5'])),
-        'ddaa': (center(x_domains['xaxis6']), center(y_domains['yaxis6'])),
+        'lm': (center(x_domains['xaxis4']), center(y_domains['yaxis4'])),
+        'ddaa': (center(x_domains['xaxis5']), center(y_domains['yaxis5'])),
     }
 
     trajectories = {
@@ -453,11 +447,6 @@ def _add_trajectory(fig, step_index, x_domains, y_domains):
         points = trajectories[step_index]
         x_vals = [p[0] for p in points]
         y_vals = [p[1] for p in points]
-
-        # Remove previous trajectory shapes
-        fig.layout.shapes = tuple(
-            s for s in fig.layout.shapes if not (getattr(s, 'line', None) and s.line.color == 'red')
-        )
 
         for start, end in zip(points[:-1], points[1:]):
             fig.add_shape(
@@ -555,7 +544,7 @@ def build_canvas(data, frame=0):
                 showlegend=False,
             ),
             row=3,
-            col=2,
+            col=1,
         )
 
     # Updated equilibrium marker
@@ -569,7 +558,7 @@ def build_canvas(data, frame=0):
                 showlegend=False,
             ),
             row=3,
-            col=2,
+            col=1,
         )
 
     # Frame caption
