@@ -37,10 +37,21 @@ def solve(params: Parameters) -> dict:
     dd_e = 2.0 - 0.005 * dd_y
     aa_y = y_range
     aa_e = 0.8 + 0.008 * aa_y
-    
+
+    # Alternate DD for policy shock
+    dd_post_e = 2.1 - 0.005 * dd_y
+
     # Equilibrium
     y_eq = 100.0
     e_eq = 1.4
+
+    # Simple demonstration trajectory across panels
+    trajectory_path = [
+        (0.75, 0.63),  # LM panel
+        (0.25, 0.63),  # UIP panel
+        (0.25, 0.52),  # move down
+        (0.50, 0.25)   # DD-AA panel
+    ]
     
     return {
         "invest_curve": (invest_x, invest_y),
@@ -48,11 +59,16 @@ def solve(params: Parameters) -> dict:
         "uip_curve": (uip_x, uip_y),
         "lm_curve": (lm_x, lm_y),
         "points_DD_pre": (dd_y, dd_e),
-        "points_DD_post": (dd_y, dd_e),
+        "points_DD_post": (dd_y, dd_post_e),
         "points_AA_pre": (aa_y, aa_e),
         "points_AA_post": (aa_y, aa_e),
         "equilibrium_pre": (y_eq, e_eq),
-        "equilibrium_post": (y_eq, e_eq)
+        "equilibrium_post": (y_eq, e_eq),
+        "dd_post_x": dd_y,
+        "dd_post_y": dd_post_e,
+        "trajectory_path": trajectory_path,
+        "eq_x": y_eq,
+        "eq_y": e_eq
     }
 
 

@@ -368,7 +368,13 @@ def _add_trajectory(fig, step_index):
     trajectories = {
         1: [(0.25, 0.82), (0.25, 0.75)],  # Investment down
         2: [(0.25, 0.82), (0.25, 0.57), (0.25, 0.52)],  # To S_ERL
-        3: [(0.25, 0.82), (0.25, 0.57), (0.25, 0.52), (0.75, 0.52)],  # To LM
+        3: [
+            (0.75, 0.63),  # LM panel
+            (0.25, 0.63),  # UIP panel
+            (0.25, 0.52),  # Down to Real-money
+            (0.75, 0.52),  # Across Real-money
+            (0.55, 0.22)   # Into DD-AA
+        ],
         4: [(0.25, 0.82), (0.25, 0.57), (0.25, 0.52), (0.75, 0.52), (0.75, 0.30)],  # Down
         5: [(0.25, 0.82), (0.25, 0.57), (0.25, 0.52), (0.75, 0.52), (0.75, 0.30), (0.55, 0.22)],  # To equilibrium
         6: [(0.25, 0.82), (0.25, 0.57), (0.25, 0.52), (0.75, 0.52), (0.75, 0.30), (0.50, 0.22)]  # Final
@@ -458,6 +464,50 @@ def _style_figure(fig):
 
 
 # Compatibility function
-def build_canvas(data):
-    """Legacy function for compatibility."""
-    return build_complete_diagram({"changes": {}}, 0)
+def build_canvas(data, frame=0):
+    """Build diagram using solver output."""
+    fig = build_complete_diagram({"changes": {}}, frame)
+
+    # Optional post-shift DD curve
+    if "dd_post_x" in data and "dd_post_y" in data:
+        fig.add_trace(
+            go.Scatter(
+                x=data["dd_post_x"],
+                y=data["dd_post_y"],
+                mode="lines",
+                line=dict(color="#1f77b4", width=3),
+                showlegend=False,
+            ),
+            row=3,
+            col=1,
+        )
+
+    # Updated equilibrium marker
+    if "eq_x" in data and "eq_y" in data:
+        fig.add_trace(
+            go.Scatter(
+                x=[data["eq_x"]],
+                y=[data["eq_y"]],
+                mode="markers",
+                marker=dict(color="black", size=12),
+                showlegend=False,
+            ),
+            row=3,
+            col=1,
+        )
+
+    # Frame caption
+    captions = data.get("captions", [])
+    if frame < len(captions):
+        fig.add_annotation(
+            text=captions[frame],
+            x=0.5,
+            y=1.05,
+            xref="paper",
+            yref="paper",
+            showarrow=False,
+            xanchor="center",
+            font=dict(size=12),
+        )
+
+    return fig
