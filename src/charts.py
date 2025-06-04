@@ -4,6 +4,13 @@ from plotly.subplots import make_subplots
 import numpy as np
 
 
+def default_range(equilibrium: float, span: float = 100) -> np.ndarray:
+    """Return a symmetric Y range around the equilibrium level."""
+    lower = max(0, equilibrium - span)
+    upper = equilibrium + span
+    return np.linspace(lower, upper, 100)
+
+
 def build_canvas(data: dict) -> go.Figure:
     """Build the complete DD-AA model visualization with all subplots."""
     
