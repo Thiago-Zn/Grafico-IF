@@ -1,324 +1,673 @@
-import streamlit as st
-from src import charts
+"""Charts module for DD-AA model - Enhanced with proper styling and animations."""
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import numpy as np
 
-# Configure page
-st.set_page_config(
-    page_title="DD-AA Model Simulator",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
 
-# Initialize session state
-if 'current_step' not in st.session_state:
-    st.session_state.current_step = 0
-if 'scenario' not in st.session_state:
-    st.session_state.scenario = "Permanent Monetary Expansion"
-
-# Define all Chapter 17 scenarios
-SCENARIOS = {
-    "Permanent Monetary Expansion": [
-        {
-            "title": "Initial Equilibrium",
-            "description": "Economy at full employment Y₁",
-            "changes": {}
-        },
-        {
-            "title": "Money Supply Increase",
-            "description": "Central bank increases M^S → LM shifts right → i falls",
-            "changes": {"lm_shift": True, "i_level": "i2"}
-        },
-        {
-            "title": "UIP Response",
-            "description": "Lower interest rate → Currency depreciates → AA shifts right",
-            "changes": {"lm_shift": True, "i_level": "i2", "aa_shift": 1}
-        },
-        {
-            "title": "DD Adjustment",
-            "description": "Depreciation boosts exports → DD shifts right",
-            "changes": {"lm_shift": True, "i_level": "i2", "aa_shift": 1, "dd_shift": True}
-        },
-        {
-            "title": "New Short-Run Equilibrium",
-            "description": "Economy at Y₂ > Y₁ with higher exchange rate",
-            "changes": {"lm_shift": True, "i_level": "i2", "aa_shift": 1, "dd_shift": True, "equilibrium": "Y2"}
-        },
-        {
-            "title": "Long-Run Adjustment",
-            "description": "Prices adjust → AA shifts back → Return to Y₁ with permanently higher E",
-            "changes": {"lm_shift": True, "i_level": "i3", "aa_shift": 2, "dd_shift": True, "equilibrium": "Y3"}
-        }
-    ],
-    "Temporary Monetary Expansion": [
-        {
-            "title": "Initial Equilibrium",
-            "description": "Economy at full employment Y₁",
-            "changes": {}
-        },
-        {
-            "title": "Money Supply Increase",
-            "description": "Central bank temporarily increases M^S → LM shifts right → i falls",
-            "changes": {"lm_shift": True, "i_level": "i2"}
-        },
-        {
-            "title": "Limited UIP Response",
-            "description": "Lower i → Limited depreciation (agents expect reversal) → Small AA shift",
-            "changes": {"lm_shift": True, "i_level": "i2", "aa_shift": 0.5}
-        },
-        {
-            "title": "Short-Run Equilibrium",
-            "description": "Small increase in Y and E due to expectations",
-            "changes": {"lm_shift": True, "i_level": "i2", "aa_shift": 0.5, "equilibrium": "Y1.5"}
-        },
-        {
-            "title": "Policy Reversal",
-            "description": "Money supply returns to original level → Back to Y₁",
-            "changes": {}
-        }
-    ],
-    "Permanent Fiscal Expansion": [
-        {
-            "title": "Initial Equilibrium",
-            "description": "Economy at full employment Y₁",
-            "changes": {}
-        },
-        {
-            "title": "Government Spending Increase",
-            "description": "G increases → DD shifts right immediately",
-            "changes": {"dd_shift": True}
-        },
-        {
-            "title": "Short-Run Effects",
-            "description": "Higher Y → Higher money demand → i rises → Currency appreciates",
-            "changes": {"dd_shift": True, "i_level": "i2.5", "s_level": "s0.5"}
-        },
-        {
-            "title": "AA Response",
-            "description": "Higher i → AA shifts left → Partial crowding out",
-            "changes": {"dd_shift": True, "aa_shift": -1, "equilibrium": "Y1.3"}
-        },
-        {
-            "title": "Long-Run Adjustment",
-            "description": "Prices rise → Real money supply falls → Further crowding out",
-            "changes": {"dd_shift": True, "aa_shift": -1.5, "equilibrium": "Y1", "s_level": "s0.3"}
-        }
-    ],
-    "Temporary Fiscal Expansion": [
-        {
-            "title": "Initial Equilibrium",
-            "description": "Economy at full employment Y₁",
-            "changes": {}
-        },
-        {
-            "title": "Government Spending Increase",
-            "description": "Temporary G increase → DD shifts right",
-            "changes": {"dd_shift": True}
-        },
-        {
-            "title": "Short-Run Response",
-            "description": "Y rises → i rises → Limited currency appreciation",
-            "changes": {"dd_shift": True, "i_level": "i2", "equilibrium": "Y1.2"}
-        },
-        {
-            "title": "Policy Reversal",
-            "description": "G returns to original level → DD shifts back",
-            "changes": {}
-        }
-    ],
-    "Permanent Real Sector Shock": [
-        {
-            "title": "Initial Equilibrium",
-            "description": "Economy at full employment Y₁",
-            "changes": {}
-        },
-        {
-            "title": "Productivity Improvement",
-            "description": "Technology advance → Potential output increases → Y* rises",
-            "changes": {"y_potential": "Y2"}
-        },
-        {
-            "title": "Investment Response",
-            "description": "Higher productivity → Investment increases → i falls",
-            "changes": {"y_potential": "Y2", "i_level": "i2", "investment_shift": True}
-        },
-        {
-            "title": "DD and AA Adjustments",
-            "description": "Higher I → DD shifts right; Lower i → AA shifts right",
-            "changes": {"dd_shift": True, "aa_shift": 1, "equilibrium": "Y2"}
-        },
-        {
-            "title": "New Long-Run Equilibrium",
-            "description": "Economy at new full employment Y₂ > Y₁",
-            "changes": {"dd_shift": True, "aa_shift": 1, "equilibrium": "Y2", "y_potential": "Y2"}
-        }
-    ],
-    "Monetary Contraction": [
-        {
-            "title": "Initial Equilibrium",
-            "description": "Economy at full employment Y₁",
-            "changes": {}
-        },
-        {
-            "title": "Money Supply Decrease",
-            "description": "Central bank reduces M^S → LM shifts left → i rises",
-            "changes": {"lm_shift": -1, "i_level": "i3"}
-        },
-        {
-            "title": "UIP Response",
-            "description": "Higher interest rate → Currency appreciates → AA shifts left",
-            "changes": {"lm_shift": -1, "i_level": "i3", "aa_shift": -1}
-        },
-        {
-            "title": "DD Adjustment",
-            "description": "Appreciation hurts exports → DD shifts left",
-            "changes": {"lm_shift": -1, "i_level": "i3", "aa_shift": -1, "dd_shift": -1}
-        },
-        {
-            "title": "Short-Run Recession",
-            "description": "Economy at Y₀ < Y₁ with lower exchange rate",
-            "changes": {"lm_shift": -1, "i_level": "i3", "aa_shift": -1, "dd_shift": -1, "equilibrium": "Y0"}
-        },
-        {
-            "title": "Long-Run Adjustment",
-            "description": "Prices fall → AA shifts back → Return to Y₁ with lower E",
-            "changes": {"lm_shift": -1, "i_level": "i1", "aa_shift": -0.5, "dd_shift": -1, "equilibrium": "Y1"}
-        }
-    ]
-}
-
-# Header with improved styling
-st.markdown("""
-<style>
-.main-header {
-    text-align: center;
-    padding: 1rem 0;
-    border-bottom: 3px solid #003366;
-    margin-bottom: 2rem;
-}
-.scenario-title {
-    color: #003366;
-    font-size: 2.5rem;
-    font-weight: bold;
-    margin: 0;
-}
-.step-description {
-    color: #666;
-    font-size: 1.5rem;
-    margin: 0.5rem 0 0 0;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# Display header
-current_scenario = st.session_state.scenario
-current_step = st.session_state.current_step
-steps = SCENARIOS[current_scenario]
-current_data = steps[current_step]
-
-st.markdown(f"""
-<div class="main-header">
-    <h1 class="scenario-title">{current_scenario}</h1>
-    <p class="step-description">Step {current_step + 1} of {len(steps)}: {current_data['description']}</p>
-</div>
-""", unsafe_allow_html=True)
-
-# Main layout
-col1, col2 = st.columns([4.5, 1.5])
-
-with col1:
-    # Build and display the figure
-    fig = charts.build_complete_diagram(current_data, current_step)
-    st.plotly_chart(fig, use_container_width=True)
-
-with col2:
-    # Scenario selector with all Chapter 17 options
-    st.markdown("### Select Economic Scenario")
-    new_scenario = st.selectbox(
-        "",
-        options=list(SCENARIOS.keys()),
-        index=list(SCENARIOS.keys()).index(st.session_state.scenario),
-        key="scenario_selector"
+def build_complete_diagram(step_data, step_index):
+    """Build the complete DD-AA diagram for a given step."""
+    
+    # Create the correct subplot layout with increased spacing for trajectories
+    fig = make_subplots(
+        rows=3,
+        cols=3,
+        row_heights=[0.25, 0.25, 0.5],
+        column_widths=[0.3, 0.3, 0.4],
+        specs=[
+            [{"type": "xy"}, {"type": "xy"}, None],
+            [{"type": "xy"}, {"type": "xy"}, None],
+            [{"type": "xy"}, {"colspan": 2, "type": "xy"}, None],
+        ],
+        vertical_spacing=0.15,  # Increased for trajectory corridors
+        horizontal_spacing=0.12,
     )
     
-    if new_scenario != st.session_state.scenario:
-        st.session_state.scenario = new_scenario
-        st.session_state.current_step = 0
-        st.rerun()
-    
-    st.markdown("---")
-    
-    # Navigation section
-    st.markdown("### Navigation")
-    
-    col_back, col_forward = st.columns(2)
-    
-    with col_back:
-        if st.button("⬅️ Previous", 
-                    disabled=(current_step == 0),
-                    use_container_width=True,
-                    help="Go to previous step"):
-            st.session_state.current_step = max(0, current_step - 1)
-            st.rerun()
-    
-    with col_forward:
-        max_steps = len(steps) - 1
-        if st.button("Next ➡️",
-                    disabled=(current_step >= max_steps),
-                    use_container_width=True,
-                    help="Go to next step"):
-            st.session_state.current_step = min(max_steps, current_step + 1)
-            st.rerun()
-    
-    # Progress indicator
-    progress = (current_step + 1) / len(steps)
-    st.progress(progress)
-    st.markdown(f"**Step {current_step + 1} of {len(steps)}**")
-    
-    # Step details
-    st.markdown("---")
-    st.markdown("### Current Step")
-    st.info(f"**{current_data['title']}**\n\n{current_data['description']}")
-    
-    # Economic indicators (optional)
-    if current_data.get('changes'):
-        st.markdown("### Key Changes")
-        changes = current_data['changes']
-        
-        indicators = []
-        if changes.get('i_level'):
-            indicators.append(f"Interest rate: {changes['i_level']}")
-        if changes.get('equilibrium'):
-            indicators.append(f"Output: {changes['equilibrium']}")
-        if changes.get('s_level'):
-            indicators.append(f"Exchange rate: {changes['s_level']}")
-        
-        for indicator in indicators:
-            st.markdown(f"- {indicator}")
+    # Get data for current step
+    changes = step_data.get("changes", {})
 
-# Add explanatory text at bottom
-with st.expander("📚 About the DD-AA Model"):
-    st.markdown("""
-    The **DD-AA model** is a framework for analyzing the short-run behavior of an open economy under flexible exchange rates.
+    # Domain mapping for trajectory normalisation
+    layout_json = fig.to_dict()["layout"]
+    x_domains = {k: layout_json[k]["domain"] for k in layout_json if k.startswith("xaxis")}
+    y_domains = {k.replace("xaxis", "yaxis"): layout_json[k.replace("xaxis", "yaxis")]["domain"] for k in x_domains}
     
-    - **DD curve**: Shows combinations of output (Y) and exchange rate (E) where the goods market is in equilibrium
-    - **AA curve**: Shows combinations where the asset markets (money and foreign exchange) are in equilibrium
+    # Add all panels with enhanced styling
+    _add_investment_panel(fig, changes, row=1, col=1)
+    _add_demand_panel(fig, changes, row=1, col=2)
+    _add_serl_panel(fig, changes, row=2, col=1)
+    _add_money_market_panel(fig, changes, row=3, col=1)  # Enhanced version
+    _add_ddaa_panel(fig, changes, row=3, col=2)
     
-    This interactive tool demonstrates how various economic shocks affect the equilibrium through step-by-step animations.
+    # Add trajectory line based on step
+    if step_index > 0:
+        _add_trajectory(fig, step_index, x_domains, y_domains)
     
-    **Key mechanisms:**
-    - Monetary policy affects interest rates → exchange rates → output
-    - Fiscal policy affects demand → output → interest rates → exchange rates
-    - Real shocks affect productivity → investment → both curves
+    # Add shift arrows for economic transitions
+    if changes:
+        _add_shift_arrows(fig, changes, step_index)
     
-    Each scenario shows the complete adjustment path from initial shock to new equilibrium.
-    """)
+    # Add title and annotations
+    _add_annotations(fig, step_data, changes)
+    
+    # Style the figure with thick black axes
+    _style_figure(fig)
+    
+    return fig
 
-# Hide Streamlit elements
-st.markdown("""
-<style>
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-.stDeployButton {display:none;}
-header {visibility: hidden;}
-</style>
-""", unsafe_allow_html=True)
+
+def _add_investment_panel(fig, changes, row, col):
+    """Investment-i panel (top-left) with economic arrows."""
+    # Investment curve
+    i = np.linspace(0, 8, 100)
+    I = 30 + 15 * np.sqrt(i)
+    
+    trace = go.Scatter(x=i, y=I, mode='lines',
+                       line=dict(color='#1f77b4', width=3),
+                       showlegend=False)
+    fig.add_trace(trace, row=row, col=col)
+
+    xaxis_id = fig.data[-1].xaxis
+    yaxis_id = fig.data[-1].yaxis
+    
+    # Interest rate levels
+    i_levels = {"i1": 2, "i2": 1, "i3": 2}
+    current_i = changes.get("i_level", "i1")
+    
+    # Add arrow showing interest rate fall
+    if current_i == "i2" and changes.get("show_i_arrow"):
+        fig.add_annotation(
+            x=2, y=45, ax=1, ay=42,
+            xref=xaxis_id, yref=yaxis_id, axref=xaxis_id, ayref=yaxis_id,
+            showarrow=True, arrowhead=3, arrowcolor='red',
+            arrowwidth=3, arrowsize=1.5,
+            text="i ↓", font=dict(size=12, color='red')
+        )
+    
+    for level_name, i_val in i_levels.items():
+        if level_name == "i1" or level_name == current_i:
+            I_val = 30 + 15 * np.sqrt(i_val)
+            # Horizontal line
+            fig.add_hline(y=I_val, line=dict(color='gray', dash='dash', width=1),
+                         row=row, col=col)
+            # Vertical line
+            fig.add_vline(x=i_val, line=dict(color='purple', dash='dash', width=1),
+                         row=row, col=col)
+            # Label
+            fig.add_annotation(
+                text=f"{level_name}", x=-0.5, y=I_val,
+                xref=xaxis_id, yref=yaxis_id,
+                showarrow=False, font=dict(size=10)
+            )
+    
+    # Title
+    fig.add_annotation(
+        text="Investment, i", x=4, y=52,
+        xref=xaxis_id, yref=yaxis_id,
+        showarrow=False, font=dict(size=12)
+    )
+
+
+def _add_demand_panel(fig, changes, row, col):
+    """Aggregate demand panel (top-right)."""
+    Y = np.linspace(60, 150, 100)
+    
+    # 45-degree line
+    trace = go.Scatter(x=Y, y=Y, mode='lines',
+                       line=dict(color='gray', width=2),
+                       showlegend=False)
+    fig.add_trace(trace, row=row, col=col)
+
+    xaxis_id = fig.data[-1].xaxis
+    yaxis_id = fig.data[-1].yaxis
+    
+    # Demand curves based on step
+    if changes.get("dd_shift"):
+        # Show D1, D2, D3
+        D1 = 0.7 * Y + 20
+        D2 = 0.7 * Y + 25  # Shifted up
+        D3 = 0.7 * Y + 20  # Same as D1
+        
+        fig.add_trace(
+            go.Scatter(x=Y, y=D1, mode='lines',
+                       line=dict(color='purple', width=2),
+                       showlegend=False),
+            row=row, col=col
+        )
+        fig.add_trace(
+            go.Scatter(x=Y, y=D2, mode='lines',
+                       line=dict(color='green', width=2),
+                       showlegend=False),
+            row=row, col=col
+        )
+        
+        # Labels
+        fig.add_annotation(
+            text="D₁ = D₃", x=130, y=111,
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=False, bgcolor='lavender', bordercolor='purple',
+            borderwidth=1, font=dict(size=10)
+        )
+        fig.add_annotation(
+            text="D₂", x=140, y=118,
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=False, font=dict(size=10, color='green')
+        )
+    else:
+        # Just D1
+        D1 = 0.7 * Y + 20
+        fig.add_trace(
+            go.Scatter(x=Y, y=D1, mode='lines',
+                       line=dict(color='#1f77b4', width=2),
+                       showlegend=False),
+            row=row, col=col
+        )
+    
+    # Y markers with proper equilibrium tracking
+    Y_levels = {"Y1": 100, "Y2": 110, "Y3": 100}
+    eq_state = changes.get("equilibrium", "Y1")
+    
+    for name, val in Y_levels.items():
+        if name == "Y1" or name == eq_state:
+            fig.add_vline(x=val, line=dict(color='purple', dash='dash', width=1),
+                         row=row, col=col)
+            fig.add_annotation(
+                text=f"{name}", x=val, y=65,
+                xref=xaxis_id, yref=yaxis_id,
+                showarrow=False, yanchor='top', font=dict(size=10)
+            )
+    
+    # Title
+    fig.add_annotation(
+        text="Aggregate demand", x=105, y=148,
+        xref=xaxis_id, yref=yaxis_id,
+        showarrow=False, font=dict(size=12)
+    )
+
+
+def _add_serl_panel(fig, changes, row, col):
+    """S_ERL/USD panel (middle-left) with currency depreciation arrow."""
+    i = np.linspace(0, 6, 100)
+    s = 1.8 - 0.08 * i
+    
+    trace = go.Scatter(x=i, y=s, mode='lines',
+                       line=dict(color='#1f77b4', width=3),
+                       showlegend=False)
+    fig.add_trace(trace, row=row, col=col)
+
+    xaxis_id = fig.data[-1].xaxis
+    yaxis_id = fig.data[-1].yaxis
+    
+    # Exchange rate levels
+    s_levels = {"s1": 1.4, "s2": 1.6, "s3": 1.4}
+    current_s = changes.get("s_level", "s1")
+    
+    # Add arrow showing currency depreciation
+    if changes.get("aa_shift") == 1 and changes.get("show_s_arrow"):
+        fig.add_annotation(
+            x=3, y=1.4, ax=3, ay=1.6,
+            xref=xaxis_id, yref=yaxis_id, axref=xaxis_id, ayref=yaxis_id,
+            showarrow=True, arrowhead=3, arrowcolor='green',
+            arrowwidth=3, arrowsize=1.5,
+            text="S ↑", font=dict(size=12, color='green')
+        )
+    
+    for name, val in s_levels.items():
+        if name == "s1" or (name == "s2" and changes.get("aa_shift")):
+            fig.add_hline(y=val, line=dict(color='gray', dash='dash', width=1),
+                         row=row, col=col)
+            fig.add_annotation(
+                text=f"{name}", x=-0.3, y=val,
+                xref=xaxis_id, yref=yaxis_id,
+                showarrow=False, xanchor='right', font=dict(size=10)
+            )
+    
+    # Formula
+    fig.add_annotation(
+        text="i<sub>USA</sub> + (s̄<sup>e</sup> - s)/s", x=3, y=1.3,
+        xref=xaxis_id, yref=yaxis_id,
+        showarrow=False, font=dict(size=10)
+    )
+    
+    # Title
+    fig.add_annotation(
+        text="S<sub>ERL/USD</sub>", x=3, y=1.85,
+        xref=xaxis_id, yref=yaxis_id,
+        showarrow=False, font=dict(size=12)
+    )
+
+
+def _add_money_market_panel(fig, changes, row, col):
+    """Enhanced Money Market panel with proper styling."""
+    L = np.linspace(60, 140, 100)
+    
+    xaxis_id = fig.data[-1].xaxis
+    yaxis_id = fig.data[-1].yaxis
+    
+    # Create smooth L-shaped money demand curves
+    def create_smooth_l_curve(base_l=100, color='#1f77b4'):
+        """Create economically realistic L-shaped money demand curve"""
+        # High interest rate portion (steep slope)
+        high_q = np.linspace(base_l - 20, base_l - 5, 20)
+        high_i = 3.5 + 2 * np.exp(-(high_q - (base_l - 20)) * 0.1)
+        
+        # Medium interest rate portion (moderate slope)
+        med_q = np.linspace(base_l - 5, base_l + 20, 30)
+        med_i = 1.2 + 30 / (med_q - base_l + 10)
+        
+        # Low interest rate portion (liquidity trap)
+        low_q = np.linspace(base_l + 20, base_l + 40, 20)
+        low_i = np.linspace(0.5, 0.3, 20)
+        
+        # Combine all portions
+        all_q = np.concatenate([high_q, med_q, low_q])
+        all_i = np.concatenate([high_i, med_i, low_i])
+        
+        # Sort by q values
+        sort_idx = np.argsort(all_q)
+        return all_q[sort_idx], all_i[sort_idx]
+
+    # Money supply line (horizontal, thick black)
+    ms_level = 1.2
+    fig.add_trace(
+        go.Scatter(x=[60, 140], y=[ms_level, ms_level], mode='lines',
+                   line=dict(color='blue', width=3),
+                   showlegend=False,
+                   name="M^S/P"),
+        row=row, col=col
+    )
+    
+    # Add M^S/P label
+    fig.add_annotation(
+        text="M<sup>S</sup>/P", x=65, y=ms_level + 0.1,
+        xref=xaxis_id, yref=yaxis_id,
+        showarrow=False, font=dict(size=10, color='blue')
+    )
+
+    # L curves
+    curves = []
+    if not changes.get("lm_shift"):
+        q1, i1 = create_smooth_l_curve(100)
+        curves.append((q1, i1, "#1f77b4", "L(i, Y₁)"))
+    else:
+        q1, i1 = create_smooth_l_curve(100)
+        curves.append((q1, i1, "#1f77b4", "L(i, Y₁)"))
+        q2, i2 = create_smooth_l_curve(110)
+        curves.append((q2, i2, "green", "L(i, Y₂)"))
+        if changes.get("equilibrium") == "Y3":
+            q3, i3 = create_smooth_l_curve(100)
+            curves.append((q3, i3, "red", "L(i, Y₃)"))
+
+    for q_vals, i_vals, color, label in curves:
+        fig.add_trace(
+            go.Scatter(x=q_vals, y=i_vals, mode='lines',
+                       line=dict(color=color, width=3),
+                       showlegend=False),
+            row=row, col=col
+        )
+        # Add curve label
+        fig.add_annotation(
+            text=label, x=q_vals[-1], y=i_vals[-1],
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=False, xanchor='left',
+            font=dict(size=10, color=color)
+        )
+
+    # Add green dashed guide lines connecting to other panels
+    if changes.get("lm_shift"):
+        # Horizontal line at i2
+        fig.add_hline(y=1.0, line=dict(color='green', dash='dash', width=2),
+                     row=row, col=col)
+        # Vertical line at equilibrium L
+        fig.add_vline(x=110, line=dict(color='green', dash='dash', width=2),
+                     row=row, col=col)
+
+    # Title
+    fig.add_annotation(
+        text="Money market", x=100, y=3.8,
+        xref=xaxis_id, yref=yaxis_id,
+        showarrow=False, font=dict(size=12)
+    )
+
+
+def _add_ddaa_panel(fig, changes, row, col):
+    """DD-AA panel with shift arrows."""
+    Y = np.linspace(50, 150, 100)
+    
+    xaxis_id = fig.data[-1].xaxis
+    yaxis_id = fig.data[-1].yaxis
+    
+    # Base curves
+    DD1 = 2.0 - 0.005 * Y
+    AA1 = 0.8 + 0.008 * Y
+    
+    # Pre-shock curves (gray)
+    fig.add_trace(
+        go.Scatter(x=Y, y=DD1, mode='lines',
+                   line=dict(color='rgba(0,0,0,0.3)', width=2),
+                   showlegend=False),
+        row=row, col=col
+    )
+    fig.add_trace(
+        go.Scatter(x=Y, y=AA1, mode='lines',
+                   line=dict(color='rgba(0,0,0,0.3)', width=2),
+                   showlegend=False),
+        row=row, col=col
+    )
+    
+    # Labels for base curves
+    fig.add_annotation(
+        text="DD₁", x=Y[-1], y=DD1[-1],
+        xref=xaxis_id, yref=yaxis_id,
+        showarrow=False, xanchor='left', font=dict(size=10)
+    )
+    fig.add_annotation(
+        text="AA₁", x=Y[0], y=AA1[0],
+        xref=xaxis_id, yref=yaxis_id,
+        showarrow=False, xanchor='right', font=dict(size=10)
+    )
+    
+    # Shifted curves based on changes
+    if changes.get("dd_shift"):
+        DD2 = 2.1 - 0.005 * Y  # Shifted right
+        fig.add_trace(
+            go.Scatter(x=Y, y=DD2, mode='lines',
+                       line=dict(color='#1f77b4', width=3),
+                       showlegend=False),
+            row=row, col=col
+        )
+        fig.add_annotation(
+            text="DD₂", x=Y[-1], y=DD2[-1],
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=False, xanchor='left', font=dict(size=10, color='#1f77b4')
+        )
+        
+        # DD shift arrow
+        if changes.get("show_dd_arrow"):
+            fig.add_annotation(
+                x=90, y=1.55, ax=110, ay=1.55,
+                xref=xaxis_id, yref=yaxis_id, axref=xaxis_id, ayref=yaxis_id,
+                showarrow=True, arrowhead=3, arrowcolor='blue',
+                arrowwidth=3, arrowsize=1.5,
+                text="DD →", font=dict(size=12, color='blue')
+            )
+    
+    if changes.get("aa_shift") == 1:
+        AA2 = 0.9 + 0.008 * Y  # Shifted right
+        fig.add_trace(
+            go.Scatter(x=Y, y=AA2, mode='lines',
+                       line=dict(color='red', width=3),
+                       showlegend=False),
+            row=row, col=col
+        )
+        fig.add_annotation(
+            text="AA₂", x=Y[0], y=AA2[0],
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=False, xanchor='right', font=dict(size=10, color='red')
+        )
+        
+        # AA shift arrow
+        if changes.get("show_aa_arrow"):
+            fig.add_annotation(
+                x=80, y=1.44, ax=80, ay=1.54,
+                xref=xaxis_id, yref=yaxis_id, axref=xaxis_id, ayref=yaxis_id,
+                showarrow=True, arrowhead=3, arrowcolor='red',
+                arrowwidth=3, arrowsize=1.5,
+                text="AA →", font=dict(size=12, color='red')
+            )
+    elif changes.get("aa_shift") == 2:
+        # AA partially returns
+        AA3 = 0.82 + 0.008 * Y
+        fig.add_trace(
+            go.Scatter(x=Y, y=AA3, mode='lines',
+                       line=dict(color='red', width=3),
+                       showlegend=False),
+            row=row, col=col
+        )
+        fig.add_annotation(
+            text="AA₃", x=Y[0], y=AA3[0],
+            xref=xaxis_id, yref=yaxis_id,
+            showarrow=False, xanchor='right', font=dict(size=10, color='red')
+        )
+        
+        # AA return arrow
+        if changes.get("show_aa_return_arrow"):
+            fig.add_annotation(
+                x=80, y=1.54, ax=80, ay=1.46,
+                xref=xaxis_id, yref=yaxis_id, axref=xaxis_id, ayref=yaxis_id,
+                showarrow=True, arrowhead=3, arrowcolor='orange',
+                arrowwidth=3, arrowsize=1.5,
+                text="AA ←", font=dict(size=12, color='orange')
+            )
+    
+    # Equilibrium points
+    eq_points = {
+        "Y1": (100, 1.5),
+        "Y2": (110, 1.58),
+        "Y3": (100, 1.52)
+    }
+    eq_state = changes.get("equilibrium", "Y1")
+    eq = eq_points.get(eq_state, eq_points["Y1"])
+    
+    fig.add_trace(
+        go.Scatter(x=[eq[0]], y=[eq[1]], mode='markers',
+                   marker=dict(color='black', size=12),
+                   showlegend=False),
+        row=row, col=col
+    )
+    
+    # Title
+    fig.add_annotation(
+        text="Rates of return<br>in terms of ERL", x=70, y=1.9,
+        xref=xaxis_id, yref=yaxis_id,
+        showarrow=False, font=dict(size=12)
+    )
+    
+    # Policy text box (for final step)
+    if changes.get("equilibrium") == "Y3":
+        fig.add_annotation(
+            text="The interest rate remains at its level i₁. The AA shifts back to its original level.<br>The output remains at full-employment level: Y₁ = Y₃, i₁ = i₃, s₁ = s₃",
+            x=0.98, y=0.02,
+            xref="paper", yref="paper",
+            showarrow=False, xanchor='right', yanchor='bottom',
+            bgcolor='rgba(255,255,255,0.9)', bordercolor='red',
+            borderwidth=2, font=dict(size=11, color='red')
+        )
+
+
+def _add_trajectory(fig, step_index, x_domains, y_domains):
+    """Add red trajectory line with proper boundary handling."""
+    
+    def center(dom):
+        return dom[0] + (dom[1] - dom[0]) / 2
+    
+    def get_panel_coords(panel_name, x_frac=0.5, y_frac=0.5):
+        """Get coordinates within a specific panel"""
+        panel_map = {
+            'investment': ('xaxis', 'yaxis'),
+            'demand': ('xaxis2', 'yaxis2'),
+            'uip': ('xaxis3', 'yaxis3'),
+            'lm': ('xaxis4', 'yaxis4'),
+            'ddaa': ('xaxis5', 'yaxis5'),
+        }
+        x_axis, y_axis = panel_map[panel_name]
+        x_dom = x_domains[x_axis]
+        y_dom = y_domains[y_axis]
+        return (
+            x_dom[0] + (x_dom[1] - x_dom[0]) * x_frac,
+            y_dom[0] + (y_dom[1] - y_dom[0]) * y_frac
+        )
+    
+    # Define trajectories for each step
+    trajectories = {
+        1: [
+            get_panel_coords('investment', 0.5, 1.0),  # Top of investment panel
+            get_panel_coords('investment', 0.5, 0.5),  # Center of investment panel
+        ],
+        2: [
+            get_panel_coords('investment', 0.5, 1.0),
+            get_panel_coords('investment', 0.5, 0.5),
+            get_panel_coords('uip', 0.5, 0.5),  # Center of UIP panel
+        ],
+        3: [
+            get_panel_coords('investment', 0.5, 0.5),
+            get_panel_coords('uip', 0.5, 0.5),
+            get_panel_coords('uip', 0.5, 0.0),  # Bottom of UIP
+            get_panel_coords('lm', 0.5, 0.0),    # Top of LM
+            get_panel_coords('lm', 0.5, 0.5),    # Center of LM
+        ],
+        4: [
+            get_panel_coords('investment', 0.5, 0.5),
+            get_panel_coords('uip', 0.5, 0.5),
+            get_panel_coords('uip', 0.5, 0.0),
+            get_panel_coords('lm', 0.5, 0.0),
+            get_panel_coords('lm', 0.5, 0.5),
+            get_panel_coords('ddaa', 0.5, 0.5),  # Center of DD-AA
+        ],
+        5: [
+            get_panel_coords('investment', 0.5, 0.5),
+            get_panel_coords('uip', 0.5, 0.5),
+            get_panel_coords('ddaa', 0.5, 0.5),
+        ],
+        6: [
+            get_panel_coords('investment', 0.5, 0.5),
+            get_panel_coords('uip', 0.5, 0.5),
+            get_panel_coords('lm', 0.5, 0.5),
+            get_panel_coords('ddaa', 0.5, 0.5),
+        ]
+    }
+    
+    if step_index in trajectories:
+        points = trajectories[step_index]
+        
+        # Draw trajectory segments
+        for i in range(len(points) - 1):
+            fig.add_shape(
+                type="line",
+                x0=points[i][0], y0=points[i][1],
+                x1=points[i+1][0], y1=points[i+1][1],
+                xref="paper", yref="paper",
+                line=dict(color="red", width=4),
+                layer="above"
+            )
+        
+        # Add arrowhead at the end
+        if len(points) > 1:
+            fig.add_annotation(
+                x=points[-1][0], y=points[-1][1],
+                ax=points[-2][0], ay=points[-2][1],
+                xref="paper", yref="paper",
+                axref="paper", ayref="paper",
+                showarrow=True, arrowhead=3,
+                arrowcolor="red", arrowwidth=4,
+                arrowsize=1.5
+            )
+
+
+def _add_shift_arrows(fig, changes, step_index):
+    """Add animated shift arrows based on current step."""
+    # Map step index to which arrows should be shown
+    arrow_schedule = {
+        1: ["show_i_arrow"],
+        2: ["show_s_arrow"],
+        3: ["show_aa_arrow"],
+        4: ["show_dd_arrow"],
+        5: [],
+        6: ["show_aa_return_arrow"]
+    }
+    
+    # Enable appropriate arrows for current step
+    if step_index in arrow_schedule:
+        for arrow_flag in arrow_schedule[step_index]:
+            changes[arrow_flag] = True
+
+
+def _add_annotations(fig, step_data, changes):
+    """Add title and formula annotations."""
+    # Top formula (for later steps)
+    if changes.get("dd_shift"):
+        fig.add_annotation(
+            text="D₃ = C₁(Y₃ - T) + I(i₃) + G₁ + CA₃[(Y₃ - T), s₃P*/P]",
+            x=0.5, y=0.98,
+            xref="paper", yref="paper",
+            showarrow=False, xanchor='center',
+            bgcolor='lavender', bordercolor='purple',
+            borderwidth=1, font=dict(size=11)
+        )
+    elif step_data.get("title") == "Initial Equilibrium":
+        fig.add_annotation(
+            text="D₁ = C₁(Y₁ - T) + I(i₁) + G₁ + CA₁[(Y₁ - T), s₁P*/P]",
+            x=0.5, y=0.98,
+            xref="paper", yref="paper",
+            showarrow=False, xanchor='center',
+            bgcolor='lavender', bordercolor='purple',
+            borderwidth=1, font=dict(size=11)
+        )
+    
+    # Green D2 box (for middle steps)
+    if changes.get("equilibrium") == "Y2":
+        fig.add_annotation(
+            text="D₂ = C₂(Y₂ - T) + I(i₂)\n+G₁ + CA₂[(Y₂ - T), s₂P*/P]",
+            x=0.85, y=0.85,
+            xref="paper", yref="paper",
+            showarrow=False,
+            bgcolor='lightgreen', bordercolor='green',
+            borderwidth=1, font=dict(size=10)
+        )
+
+
+def _style_figure(fig):
+    """Apply consistent styling with thick black axes."""
+    # Update all axes with thick black lines
+    fig.update_xaxes(
+        showgrid=False, zeroline=False,
+        showline=True, linecolor='black', linewidth=3,  # Thick black axes
+        mirror=True, ticks='outside',
+        tickwidth=2, tickcolor='black'
+    )
+    fig.update_yaxes(
+        showgrid=False, zeroline=False,
+        showline=True, linecolor='black', linewidth=3,  # Thick black axes
+        mirror=True, ticks='outside',
+        tickwidth=2, tickcolor='black'
+    )
+    
+    # Specific axis labels
+    fig.update_xaxes(title_text="i", row=1, col=1)
+    fig.update_yaxes(title_text="I", row=1, col=1)
+    fig.update_xaxes(title_text="Output Y", row=1, col=2)
+    fig.update_xaxes(title_text="i<sub>ERL</sub>", row=2, col=1)
+    fig.update_yaxes(title_text="S<sub>ERL/USD</sub>", row=2, col=1)
+    fig.update_xaxes(title_text="L", row=3, col=1)
+    fig.update_yaxes(title_text="i", row=3, col=1)
+    fig.update_xaxes(title_text="Output Y", row=3, col=2)
+    fig.update_yaxes(title_text="S<sub>ERL/USD</sub>", row=3, col=2)
+    
+    # Enhanced axis ranges for better visibility
+    fig.update_xaxes(range=[0, 8], row=1, col=1)
+    fig.update_yaxes(range=[30, 55], row=1, col=1)
+    fig.update_xaxes(range=[60, 150], row=1, col=2)
+    fig.update_yaxes(range=[60, 150], row=1, col=2)
+    fig.update_xaxes(range=[0, 6], row=2, col=1)
+    fig.update_yaxes(range=[1.2, 1.9], row=2, col=1)
+    fig.update_xaxes(range=[60, 140], row=3, col=1)
+    fig.update_yaxes(range=[0, 4], row=3, col=1)
+    fig.update_xaxes(range=[50, 150], row=3, col=2)
+    fig.update_yaxes(range=[1.2, 2.0], row=3, col=2)
+    
+    # Layout
+    fig.update_layout(
+        width=1000,
+        height=750,
+        showlegend=False,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        margin=dict(t=40, l=60, r=60, b=60),
+        font=dict(family="Arial, sans-serif", size=12, color="black")
+    )
+
+
+# Compatibility function
+def build_canvas(data, frame=0):
+    """Build diagram using solver output."""
+    step_data = {"changes": {}}
+    fig = build_complete_diagram(step_data, frame)
+    return fig
