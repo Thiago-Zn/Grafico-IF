@@ -60,8 +60,10 @@ def _add_investment_panel(fig, changes, row, col):
                        line=dict(color='#1f77b4', width=3),
                        showlegend=False)
     fig.add_trace(trace, row=row, col=col)
-    xaxis_id = fig.data[-1].xaxis
-    yaxis_id = fig.data[-1].yaxis
+
+    subplot = fig.get_subplot(row, col)
+    xaxis_id = subplot.xaxis._plotly_name
+    yaxis_id = subplot.yaxis._plotly_name
     
     # Interest rate levels
     i_levels = {"i1": 2, "i2": 1, "i3": 2}
@@ -100,8 +102,10 @@ def _add_demand_panel(fig, changes, row, col):
                        line=dict(color='gray', width=2),
                        showlegend=False)
     fig.add_trace(trace, row=row, col=col)
-    xaxis_id = fig.data[-1].xaxis
-    yaxis_id = fig.data[-1].yaxis
+
+    subplot = fig.get_subplot(row, col)
+    xaxis_id = subplot.xaxis._plotly_name
+    yaxis_id = subplot.yaxis._plotly_name
     
     # Demand curves based on step
     if changes.get("dd_shift"):
@@ -169,8 +173,10 @@ def _add_serl_panel(fig, changes, row, col):
                        line=dict(color='#1f77b4', width=3),
                        showlegend=False)
     fig.add_trace(trace, row=row, col=col)
-    xaxis_id = fig.data[-1].xaxis
-    yaxis_id = fig.data[-1].yaxis
+
+    subplot = fig.get_subplot(row, col)
+    xaxis_id = subplot.xaxis._plotly_name
+    yaxis_id = subplot.yaxis._plotly_name
     
     # Exchange rate levels
     s_levels = {"s1": 1.4, "s2": 1.6, "s3": 1.4}
@@ -295,8 +301,10 @@ def _add_ddaa_panel(fig, changes, row, col):
                        line=dict(color='rgba(0,0,0,0.3)', width=2),
                        showlegend=False)
     fig.add_trace(trace, row=row, col=col)
-    xaxis_id = fig.data[-1].xaxis
-    yaxis_id = fig.data[-1].yaxis
+
+    subplot = fig.get_subplot(row, col)
+    xaxis_id = subplot.xaxis._plotly_name
+    yaxis_id = subplot.yaxis._plotly_name
     fig.add_trace(
         go.Scatter(x=Y, y=AA1, mode='lines',
                    line=dict(color='rgba(0,0,0,0.3)', width=2),
