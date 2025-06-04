@@ -438,14 +438,28 @@ def _add_ddaa_panel(fig, changes, row, col):
                 text="AA ←", font=dict(size=12, color='orange')
             )
     
-    # Equilibrium points
-    eq_points = {
-        "Y1": (100, 1.5),
-        "Y2": (110, 1.58),
-        "Y3": (100, 1.52)
-    }
+    # Equilibrium points - calculated from curve intersections
+    def calculate_equilibrium(dd_shift=0, aa_shift=0):
+        # Solve: 2.0 - 0.005*Y + dd_shift = 0.8 + 0.008*Y + aa_shift
+        Y = (1.2 + dd_shift - aa_shift) / 0.013
+        E = 2.0 - 0.005 * Y + dd_shift
+        return Y, E
+    
+    # Get equilibrium based on current state
     eq_state = changes.get("equilibrium", "Y1")
-    eq = eq_points.get(eq_state, eq_points["Y1"])
+    
+    if eq_state == "Y1":
+        eq = calculate_equilibrium(0, 0)
+    elif eq_state == "Y2":
+        dd_s = 0.1 if changes.get("dd_shift") else 0
+        aa_s = 0.1 if changes.get("aa_shift") == 1 else 0
+        eq = calculate_equilibrium(dd_s, aa_s)
+    elif eq_state == "Y3":
+        dd_s = 0.1 if changes.get("dd_shift") else 0
+        aa_s = 0.02 if changes.get("aa_shift") == 2 else 0
+        eq = calculate_equilibrium(dd_s, aa_s)
+    else:
+        eq = calculate_equilibrium(0, 0)
     
     fig.add_trace(
         go.Scatter(x=[eq[0]], y=[eq[1]], mode='markers',
