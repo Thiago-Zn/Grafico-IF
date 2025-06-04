@@ -51,12 +51,17 @@ SCENARIOS = {
     ]
 }
 
+# Captions list for subtitle rendering
+CAPTIONS = {
+    scen: [step["description"] for step in steps]
+    for scen, steps in SCENARIOS.items()
+}
+
 # Header
-st.markdown("""
-<h2 style='text-align: center; color: #003366;'>
-Maintaining the GDP at its Full Employment Level
-</h2>
-""", unsafe_allow_html=True)
+subtitle = f"{st.session_state.scenario} | Short Run – Step {st.session_state.current_step + 1}"
+caption = CAPTIONS[st.session_state.scenario][st.session_state.current_step]
+st.markdown(f"<h2 style='text-align: center; color: #003366;'>{subtitle}</h2>", unsafe_allow_html=True)
+st.markdown(f"<h4 style='text-align: center; color: #666;'>{caption}</h4>", unsafe_allow_html=True)
 
 # Main layout
 col1, col2 = st.columns([5, 1])
