@@ -482,8 +482,9 @@ def _add_trajectory_line(fig, progress):
         (0.50, 0.26)   # End at DD-AA equilibrium
     ]
     
-    # Skip drawing if no progress
-    if progress <= 0:
+    # Clamp progress to [0,1]
+    progress = max(0.0, min(1.0, progress))
+    if progress == 0:
         return
 
     # Draw trajectory using shapes in paper coordinates
