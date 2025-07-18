@@ -164,3 +164,29 @@ class DDAAModel:
             'DD_base': self.dd_curve(Y_range, 0),
             'AA_base': self.aa_curve(Y_range, 0)
         }
+
+
+# ---------------------------------------------------------------------------
+# Keynesian Cross helper functions used in the unit tests.
+# These utilities were present in earlier revisions of the repository and are
+# retained here for backwards compatibility so that the test suite continues to
+# pass. They provide a very small closed form representation of the consumption,
+# investment and aggregate demand relationships that underpin the Keynesian
+# cross model.
+
+from .parameters import Parameters
+
+
+def consumption(params: Parameters, income: float) -> float:
+    """Compute consumption given income."""
+    return params.alpha + params.beta * (income - params.tax)
+
+
+def investment(params: Parameters, interest_rate: float) -> float:
+    """Investment as a decreasing function of the interest rate."""
+    return params.investment_intercept - params.investment_slope * interest_rate
+
+
+def aggregate_demand(params: Parameters, interest_rate: float, income: float) -> float:
+    """Return aggregate demand at the provided income and interest rate."""
+    return consumption(params, income) + investment(params, interest_rate) + params.government

@@ -1,0 +1,11 @@
+[
+  {
+    "nome": "Ovo cozido",
+    "categoria": "Proteína",
+    "calorias": 70,
+    "proteina": 6,
+    "carboidrato": 0,
+    "gordura": 5,
+    "unidade_padrao": "1 unid"
+  }
+]
