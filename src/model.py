@@ -1,7 +1,20 @@
-"""DD-AA Economic Model Implementation."""
+"""DD-AA Economic Model Implementation and Keynesian helpers."""
 import numpy as np
 from dataclasses import dataclass
 from typing import Dict, Tuple, List
+from .parameters import Parameters
+
+
+def aggregate_demand(params: Parameters, interest_rate: float, income: float) -> float:
+    """Compute aggregate demand for a given interest rate and income.
+
+    This helper retains the simple Keynesian formulation used in the unit tests
+    and older examples. It keeps compatibility with legacy code expecting the
+    function to exist in :mod:`src.model`.
+    """
+    consumption = params.alpha + params.beta * (income - params.tax)
+    investment = params.investment_intercept - params.investment_slope * interest_rate
+    return consumption + investment + params.government
 
 
 @dataclass
